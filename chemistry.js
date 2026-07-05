@@ -95,6 +95,9 @@ function massParts(sp){ const c=composition(sp); return Object.entries(c).map(([
 /* ---- Reaction parsing --------------------------------------------------- */
 // Spectators excluded from limiting-reactant logic (supplied in excess).
 const SPECT = new Set(['H^+','OH^-','e^-']);
+/* ---- Molar gas volume (school conventions), dm^3 per mol ------------------
+   RTP = 25 °C, 1 atm → 24.0 ; STP = 0 °C, 1 atm → 22.4  (SK015 / A-level). */
+const MOLAR_VOL = { RTP:24.0, STP:22.4 };
 // Split a token into {coef, sp}, e.g. "2HCl" -> {coef:2, sp:"HCl"}.
 function splitToken(tok){
   const m = tok.match(/^(\d+)(.+)$/);
@@ -309,7 +312,151 @@ const R = [
   {eq:"3Cl2 + 6NaOH -> 5NaCl + NaClO3 + 3H2O", cat:"pblock", el:["Cl","Na","O","H"], cond:"hot conc., disprop."},
   {eq:"NaCl + H2SO4 -> NaHSO4 + HCl", cat:"pblock", el:["Na","Cl","H","S","O"], cond:"halide test"},
   {eq:"2NaBr + 2H2SO4 -> Na2SO4 + Br2 + SO2 + 2H2O", cat:"pblock", el:["Na","Br","H","S","O"], cond:"halide test"},
-  {eq:"8NaI + 5H2SO4 -> 4Na2SO4 + 4I2 + H2S + 4H2O", cat:"pblock", el:["Na","I","H","S","O"], cond:"halide test"}
+  {eq:"8NaI + 5H2SO4 -> 4Na2SO4 + 4I2 + H2S + 4H2O", cat:"pblock", el:["Na","I","H","S","O"], cond:"halide test"},
+
+  /* ===== added reactions (round 2 — element list auto-derived) ===== */
+  {eq:"2HCl + Mg(OH)2 -> MgCl2 + 2H2O", cat:"neut"},
+  {eq:"H2SO4 + Mg(OH)2 -> MgSO4 + 2H2O", cat:"neut"},
+  {eq:"2HNO3 + Mg(OH)2 -> Mg(NO3)2 + 2H2O", cat:"neut"},
+  {eq:"H2SO4 + Ca(OH)2 -> CaSO4 + 2H2O", cat:"neut"},
+  {eq:"3H2SO4 + 2Al(OH)3 -> Al2(SO4)3 + 6H2O", cat:"neut"},
+  {eq:"H3PO4 + 3KOH -> K3PO4 + 3H2O", cat:"neut"},
+  {eq:"2H3PO4 + 3Ca(OH)2 -> Ca3(PO4)2 + 6H2O", cat:"neut"},
+  {eq:"2HCl + Ba(OH)2 -> BaCl2 + 2H2O", cat:"neut"},
+  {eq:"2HNO3 + Ba(OH)2 -> Ba(NO3)2 + 2H2O", cat:"neut"},
+  {eq:"H2SO4 + Ba(OH)2 -> BaSO4 + 2H2O", cat:"neut"},
+  {eq:"HCl + KOH -> KCl + H2O", cat:"neut"},
+  {eq:"HCl + LiOH -> LiCl + H2O", cat:"neut"},
+  {eq:"HBr + NaOH -> NaBr + H2O", cat:"neut"},
+  {eq:"HBr + KOH -> KBr + H2O", cat:"neut"},
+  {eq:"HI + NaOH -> NaI + H2O", cat:"neut"},
+  {eq:"HNO3 + NH3 -> NH4NO3", cat:"neut"},
+  {eq:"2CH3COOH + Ca(OH)2 -> (CH3COO)2Ca + 2H2O", cat:"neut"},
+  {eq:"2Na + 2HCl -> 2NaCl + H2", cat:"ametal"},
+  {eq:"2K + 2HCl -> 2KCl + H2", cat:"ametal"},
+  {eq:"Ca + H2SO4 -> CaSO4 + H2", cat:"ametal"},
+  {eq:"Zn + 2HBr -> ZnBr2 + H2", cat:"ametal"},
+  {eq:"Mg + 2HBr -> MgBr2 + H2", cat:"ametal"},
+  {eq:"2Al + 6HBr -> 2AlBr3 + 3H2", cat:"ametal"},
+  {eq:"Sn + 2HCl -> SnCl2 + H2", cat:"ametal"},
+  {eq:"Ni + 2HCl -> NiCl2 + H2", cat:"ametal"},
+  {eq:"Co + 2HCl -> CoCl2 + H2", cat:"ametal"},
+  {eq:"Mn + 2HCl -> MnCl2 + H2", cat:"ametal"},
+  {eq:"Ni + H2SO4 -> NiSO4 + H2", cat:"ametal"},
+  {eq:"Mg + 2CH3COOH -> (CH3COO)2Mg + H2", cat:"ametal"},
+  {eq:"CaCO3 + 2HNO3 -> Ca(NO3)2 + H2O + CO2", cat:"carb"},
+  {eq:"MgCO3 + H2SO4 -> MgSO4 + H2O + CO2", cat:"carb"},
+  {eq:"MgCO3 + 2HNO3 -> Mg(NO3)2 + H2O + CO2", cat:"carb"},
+  {eq:"Na2CO3 + H2SO4 -> Na2SO4 + H2O + CO2", cat:"carb"},
+  {eq:"Na2CO3 + 2HNO3 -> 2NaNO3 + H2O + CO2", cat:"carb"},
+  {eq:"K2CO3 + 2HCl -> 2KCl + H2O + CO2", cat:"carb"},
+  {eq:"K2CO3 + H2SO4 -> K2SO4 + H2O + CO2", cat:"carb"},
+  {eq:"ZnCO3 + 2HCl -> ZnCl2 + H2O + CO2", cat:"carb"},
+  {eq:"FeCO3 + 2HCl -> FeCl2 + H2O + CO2", cat:"carb"},
+  {eq:"CuCO3 + 2HCl -> CuCl2 + H2O + CO2", cat:"carb"},
+  {eq:"CuCO3 + H2SO4 -> CuSO4 + H2O + CO2", cat:"carb"},
+  {eq:"BaCO3 + 2HCl -> BaCl2 + H2O + CO2", cat:"carb"},
+  {eq:"KHCO3 + HCl -> KCl + H2O + CO2", cat:"carb"},
+  {eq:"Na2O + 2HCl -> 2NaCl + H2O", cat:"oxide"},
+  {eq:"K2O + 2HCl -> 2KCl + H2O", cat:"oxide"},
+  {eq:"CaO + H2SO4 -> CaSO4 + H2O", cat:"oxide"},
+  {eq:"MgO + H2SO4 -> MgSO4 + H2O", cat:"oxide"},
+  {eq:"ZnO + H2SO4 -> ZnSO4 + H2O", cat:"oxide"},
+  {eq:"FeO + 2HCl -> FeCl2 + H2O", cat:"oxide"},
+  {eq:"FeO + H2SO4 -> FeSO4 + H2O", cat:"oxide"},
+  {eq:"Fe2O3 + 3H2SO4 -> Fe2(SO4)3 + 3H2O", cat:"oxide"},
+  {eq:"Al2O3 + 3H2SO4 -> Al2(SO4)3 + 3H2O", cat:"oxide"},
+  {eq:"PbO + 2HCl -> PbCl2 + H2O", cat:"oxide"},
+  {eq:"PbO + 2HNO3 -> Pb(NO3)2 + H2O", cat:"oxide"},
+  {eq:"CuO + 2HNO3 -> Cu(NO3)2 + H2O", cat:"oxide"},
+  {eq:"ZnO + 2HNO3 -> Zn(NO3)2 + H2O", cat:"oxide"},
+  {eq:"MgO + 2HNO3 -> Mg(NO3)2 + H2O", cat:"oxide"},
+  {eq:"BaO + 2HCl -> BaCl2 + H2O", cat:"oxide"},
+  {eq:"CaO + 2HNO3 -> Ca(NO3)2 + H2O", cat:"oxide"},
+  {eq:"2CO + O2 -> 2CO2", cat:"comb"},
+  {eq:"C2H4 + 3O2 -> 2CO2 + 2H2O", cat:"comb", cond:"ethene"},
+  {eq:"2C2H2 + 5O2 -> 4CO2 + 2H2O", cat:"comb", cond:"ethyne"},
+  {eq:"2C3H6 + 9O2 -> 6CO2 + 6H2O", cat:"comb", cond:"propene"},
+  {eq:"C5H12 + 8O2 -> 5CO2 + 6H2O", cat:"comb", cond:"pentane"},
+  {eq:"2C6H14 + 19O2 -> 12CO2 + 14H2O", cat:"comb", cond:"hexane"},
+  {eq:"C7H16 + 11O2 -> 7CO2 + 8H2O", cat:"comb", cond:"heptane"},
+  {eq:"2C3H7OH + 9O2 -> 6CO2 + 8H2O", cat:"comb", cond:"propan-1-ol"},
+  {eq:"C4H9OH + 6O2 -> 4CO2 + 5H2O", cat:"comb", cond:"butan-1-ol"},
+  {eq:"4NH3 + 3O2 -> 2N2 + 6H2O", cat:"comb", cond:"ammonia burning"},
+  {eq:"CS2 + 3O2 -> CO2 + 2SO2", cat:"comb"},
+  {eq:"4Na + O2 -> 2Na2O", cat:"comb"},
+  {eq:"2Ca + O2 -> 2CaO", cat:"comb"},
+  {eq:"4K + O2 -> 2K2O", cat:"comb"},
+  {eq:"2Zn + O2 -> 2ZnO", cat:"comb"},
+  {eq:"2Cu + O2 -> 2CuO", cat:"comb"},
+  {eq:"4Fe + 3O2 -> 2Fe2O3", cat:"comb"},
+  {eq:"3Fe + 2O2 -> Fe3O4", cat:"comb"},
+  {eq:"Si + O2 -> SiO2", cat:"comb"},
+  {eq:"MgSO4 + 2NaOH -> Mg(OH)2 + Na2SO4", cat:"precip"},
+  {eq:"ZnSO4 + 2NaOH -> Zn(OH)2 + Na2SO4", cat:"precip"},
+  {eq:"FeCl2 + 2NaOH -> Fe(OH)2 + 2NaCl", cat:"precip"},
+  {eq:"CuCl2 + 2NaOH -> Cu(OH)2 + 2NaCl", cat:"precip"},
+  {eq:"Cu(NO3)2 + 2NaOH -> Cu(OH)2 + 2NaNO3", cat:"precip"},
+  {eq:"AlCl3 + 3NaOH -> Al(OH)3 + 3NaCl", cat:"precip"},
+  {eq:"NiCl2 + 2NaOH -> Ni(OH)2 + 2NaCl", cat:"precip"},
+  {eq:"CoCl2 + 2NaOH -> Co(OH)2 + 2NaCl", cat:"precip"},
+  {eq:"CrCl3 + 3NaOH -> Cr(OH)3 + 3NaCl", cat:"precip"},
+  {eq:"Pb(NO3)2 + 2KBr -> PbBr2 + 2KNO3", cat:"precip"},
+  {eq:"AgNO3 + NaBr -> AgBr + NaNO3", cat:"precip"},
+  {eq:"AgNO3 + NaI -> AgI + NaNO3", cat:"precip"},
+  {eq:"2AgNO3 + Na2SO4 -> Ag2SO4 + 2NaNO3", cat:"precip"},
+  {eq:"BaCl2 + K2SO4 -> BaSO4 + 2KCl", cat:"precip"},
+  {eq:"Ba(NO3)2 + Na2SO4 -> BaSO4 + 2NaNO3", cat:"precip"},
+  {eq:"Ba(NO3)2 + H2SO4 -> BaSO4 + 2HNO3", cat:"precip"},
+  {eq:"CaCl2 + 2AgNO3 -> 2AgCl + Ca(NO3)2", cat:"precip"},
+  {eq:"MgCl2 + 2AgNO3 -> 2AgCl + Mg(NO3)2", cat:"precip"},
+  {eq:"Pb(NO3)2 + K2SO4 -> PbSO4 + 2KNO3", cat:"precip"},
+  {eq:"Pb(NO3)2 + H2SO4 -> PbSO4 + 2HNO3", cat:"precip"},
+  {eq:"Fe + Cu(NO3)2 -> Fe(NO3)2 + Cu", cat:"disp"},
+  {eq:"Zn + FeSO4 -> ZnSO4 + Fe", cat:"disp"},
+  {eq:"Mg + FeSO4 -> MgSO4 + Fe", cat:"disp"},
+  {eq:"Mg + 2AgNO3 -> Mg(NO3)2 + 2Ag", cat:"disp"},
+  {eq:"Zn + 2AgNO3 -> Zn(NO3)2 + 2Ag", cat:"disp"},
+  {eq:"Fe + 2AgNO3 -> Fe(NO3)2 + 2Ag", cat:"disp"},
+  {eq:"Mg + ZnSO4 -> MgSO4 + Zn", cat:"disp"},
+  {eq:"2Al + 3CuSO4 -> Al2(SO4)3 + 3Cu", cat:"disp"},
+  {eq:"2Al + 3CuO -> Al2O3 + 3Cu", cat:"disp", cond:"thermite-type"},
+  {eq:"Fe2O3 + 3H2 -> 2Fe + 3H2O", cat:"disp"},
+  {eq:"WO3 + 3H2 -> W + 3H2O", cat:"disp"},
+  {eq:"Cl2 + 2NaBr -> 2NaCl + Br2", cat:"disp"},
+  {eq:"Cl2 + 2NaI -> 2NaCl + I2", cat:"disp"},
+  {eq:"Br2 + 2NaI -> 2NaBr + I2", cat:"disp"},
+  {eq:"2Mg + CO2 -> 2MgO + C", cat:"disp", cond:"Mg burns in CO2"},
+  {eq:"2Fe^2+ + Br2 -> 2Fe^3+ + 2Br^-", cat:"disp"},
+  {eq:"H2 + Br2 -> 2HBr", cat:"synth"},
+  {eq:"H2 + I2 <=> 2HI", cat:"synth"},
+  {eq:"H2 + S -> H2S", cat:"synth"},
+  {eq:"K2O + H2O -> 2KOH", cat:"synth"},
+  {eq:"BaO + H2O -> Ba(OH)2", cat:"synth"},
+  {eq:"CO2 + 2NaOH -> Na2CO3 + H2O", cat:"synth"},
+  {eq:"CO2 + NaOH -> NaHCO3", cat:"synth"},
+  {eq:"SO2 + 2NaOH -> Na2SO3 + H2O", cat:"synth"},
+  {eq:"SO3 + 2NaOH -> Na2SO4 + H2O", cat:"synth"},
+  {eq:"2Na + Cl2 -> 2NaCl", cat:"synth"},
+  {eq:"2K + Cl2 -> 2KCl", cat:"synth"},
+  {eq:"Mg + Cl2 -> MgCl2", cat:"synth"},
+  {eq:"Ca + Cl2 -> CaCl2", cat:"synth"},
+  {eq:"Zn + Cl2 -> ZnCl2", cat:"synth"},
+  {eq:"Cu + Cl2 -> CuCl2", cat:"synth"},
+  {eq:"Fe + S -> FeS", cat:"synth"},
+  {eq:"Zn + S -> ZnS", cat:"synth"},
+  {eq:"2Al + 3S -> Al2S3", cat:"synth"},
+  {eq:"6Li + N2 -> 2Li3N", cat:"synth"},
+  {eq:"H2 + F2 -> 2HF", cat:"synth"},
+  {eq:"2Al + 3Br2 -> 2AlBr3", cat:"pblock"},
+  {eq:"Si + 2Cl2 -> SiCl4", cat:"pblock"},
+  {eq:"P4 + 6Cl2 -> 4PCl3", cat:"pblock"},
+  {eq:"2P + 3Br2 -> 2PBr3", cat:"pblock"},
+  {eq:"SO2 + Cl2 -> SO2Cl2", cat:"pblock"},
+  {eq:"Co^2+ + 6NH3 -> [Co(NH3)6]^2+", cat:"complex", cond:"ligand exchange"},
+  {eq:"Zn^2+ + 4NH3 -> [Zn(NH3)4]^2+", cat:"complex", cond:"colourless"},
+  {eq:"Fe^3+ + 6CN^- -> [Fe(CN)6]^3-", cat:"complex", cond:"hexacyanoferrate(III)"},
+  {eq:"Cu^2+ + 4Cl^- -> [CuCl4]^2-", cat:"complex", cond:"yellow-green"}
 ];
 /* ---- Qualifying set: exactly two reactants after dropping spectators ------ */
 const QUAL = [];
@@ -319,10 +466,13 @@ R.filter(r=>!r.skip).forEach(r=>{
   const hadSpect = p.reactants.some(x=>SPECT.has(x.sp));
   if(real.length!==2) return;                                  // curriculum: 2 reactants only
   if(real.some(x=>molarMass(x.sp)==null)) return;              // skip if any mass is unknown
+  const elset=new Set();
+  [...p.reactants, ...p.products].forEach(t=>{ const c=composition(t.sp); for(const k in c) elset.add(k); });
+  const el=[...elset];
   QUAL.push({
-    eq:r.eq, cat:r.cat, el:r.el, cond:r.cond||"", equil:p.equil,
+    eq:r.eq, cat:r.cat, el, cond:r.cond||"", equil:p.equil,
     A:real[0], B:real[1], hadSpect,
-    search:(r.eq+" "+r.el.join(" ")+" "+(r.cond||"")+" "+CAT[r.cat].label).toLowerCase()
+    search:(r.eq+" "+el.join(" ")+" "+(r.cond||"")+" "+CAT[r.cat].label).toLowerCase()
   });
 });
 QUAL.forEach((q,i)=>q.id=i);
@@ -330,17 +480,16 @@ QUAL.forEach((q,i)=>q.id=i);
 /* ---- Limiting-reactant maths (pure — returns raw numbers, no DOM) --------
    For aA + bB -> …, the amount of B needed to use up all of A is n(A)·b/a.
    Compare n/coefficient for each reactant; the smaller one is limiting.      */
-function computeLimiting(q, mA, mB){
+function computeLimiting(q, nA, nB){
   const A=q.A, B=q.B, a=A.coef, b=B.coef;
   const MA=molarMass(A.sp), MB=molarMass(B.sp);
-  const nA=mA/MA, nB=mB/MB;
-  const nBneed=nA*(b/a);                 // B required to consume all A
+  const nBneed=nA*(b/a);
   const ratioA=nA/a, ratioB=nB/b;
-  const tol=1e-9*Math.max(ratioA,ratioB);
-  const enough = nB >= nBneed - tol;     // is there enough B for all the A?
+  const tol=1e-9*Math.max(ratioA,ratioB,1e-30);
+  const enough = nB >= nBneed - tol;
   let tie=false, limiting=null, excess=null, leftMol=0, leftMass=0;
   if(Math.abs(ratioA-ratioB)<=tol){ tie=true; }
-  else if(ratioA<ratioB){ limiting=A; excess=B; leftMol=nB-nBneed;            leftMass=leftMol*MB; }
-  else                  { limiting=B; excess=A; leftMol=nA-nB*(a/b);          leftMass=leftMol*MA; }
+  else if(ratioA<ratioB){ limiting=A; excess=B; leftMol=nB-nBneed;   leftMass=leftMol*MB; }
+  else                  { limiting=B; excess=A; leftMol=nA-nB*(a/b); leftMass=leftMol*MA; }
   return {A,B,a,b,MA,MB,nA,nB,nBneed,ratioA,ratioB,tie,enough,limiting,excess,leftMol,leftMass};
 }
