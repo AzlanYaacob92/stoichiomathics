@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Limiting Reactant Trainer · Stoichiometry</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="wrap">
+
+  <header class="head">
+    <div class="eyebrow">A-level · IB · AP · Matriculation · Year 1</div>
+    <h1>Limiting Reactant Trainer</h1>
+    <p class="sub">Pick a two-reactant equation from the bank, type in the mass of each reactant, and work out which one runs out first. Every line of the method is shown — or hidden for you to attempt — depending on the mode you choose.</p>
+    <div class="crumbs">Companion to the <b style="color:var(--muted)">Stoichiometry Reaction Index</b>. Only reactions with exactly two reactants are loaded; H⁺ and OH⁻ are treated as excess and left out of the comparison.</div>
+  </header>
+
+  <section class="modecard">
+    <h2>Choose how much help you want</h2>
+    <div class="modes" id="modes">
+      <button class="mode active" data-mode="learn">
+        <div class="mt"><span class="dot"></span>Learning</div>
+        <div class="md">Every step worked in full — molar masses, moles, ratio, comparison and the conclusion.</div>
+      </button>
+      <button class="mode" data-mode="test">
+        <div class="mt"><span class="dot"></span>Testing</div>
+        <div class="md">Moles are filled in for you. The ratio and the limiting / excess verdict are hidden — reveal them when you're ready.</div>
+      </button>
+      <button class="mode" data-mode="verify">
+        <div class="mt"><span class="dot"></span>Verify</div>
+        <div class="md">Answers only — the key figures for each step so you can check your own working.</div>
+      </button>
+    </div>
+  </section>
+
+  <div class="controls">
+    <label class="field">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+      <input id="search" type="text" placeholder="Search a reaction (e.g. Zn, CuSO4, MnO4)…" autocomplete="off">
+    </label>
+    <select id="catsel" aria-label="Reaction type"></select>
+    <button class="btn-clear" id="clear">Clear</button>
+  </div>
+  <div class="count" id="count"></div>
+  <div class="list" id="list"></div>
+
+  <section class="calc hidden" id="calc">
+    <div class="calc-head">
+      <div class="lab">Selected reaction</div>
+      <div class="calc-eq" id="calcEq"></div>
+      <div id="calcNote"></div>
+    </div>
+    <div class="inputs" id="inputs"></div>
+    <div class="steps">
+      <div class="stepsbar">
+        <span class="t">Worked method</span>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span class="modepill" id="modePill">Learning</span>
+          <button class="revealall" id="revealAll" style="display:none">Reveal all</button>
+        </div>
+      </div>
+      <div id="stepsOut"></div>
+    </div>
+  </section>
+
+  <footer>
+    <div><b>How it works:</b> moles <code>n = m ÷ M</code>. For <code>aA + bB → …</code> the amount of B needed to use up all the A is <code>n(A) × b/a</code>. If that's more than you have, B runs out first (B is limiting); if it's less, A runs out first. The reactant left over is the one in excess.</div>
+    <div style="margin-top:8px">Relative atomic masses follow common data-booklet values (H = 1.0, O = 16.0, Cl = 35.5, Cu = 63.5 …). State symbols and spectator H⁺/OH⁻ are omitted. Always re-check against your own mark scheme.</div>
+  </footer>
+
+</div>
+
+  <script src="chemistry.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
