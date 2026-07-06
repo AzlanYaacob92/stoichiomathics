@@ -4,89 +4,178 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Limiting Reactant Trainer · Stoichiometry</title>
+  <script>
+    // Apply the saved theme before styles paint, so there is no flash of the
+    // wrong theme. Remembers the student's choice; falls back to their
+    // system preference; defaults to light.
+    (function () {
+      try {
+        var saved = localStorage.getItem('theme');
+        var theme = saved || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+        document.documentElement.setAttribute('data-theme', theme);
+      } catch (e) { /* localStorage unavailable — default light styles apply */ }
+    })();
+  </script>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-<div class="wrap">
+  <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch to dark mode" aria-pressed="false">
+    <span id="theme-toggle-icon" aria-hidden="true">🌙</span>
+  </button>
 
-  <header class="head">
-    <div class="eyebrow">A-level · IB · AP · Matriculation · Year 1</div>
-    <h1>Limiting Reactant Trainer</h1>
-    <p class="sub">Find a two-reactant equation by tapping its elements on the periodic table, give an amount for each reactant — mass, concentration × volume, or gas volume — and work out which one runs out first. Every line of the method is shown, or hidden for you to attempt, depending on the mode you choose.</p>
-    <div class="crumbs">Companion to the <b style="color:var(--muted)">Stoichiometry Reaction Index</b>. Only reactions with exactly two reactants are loaded; H⁺ and OH⁻ are treated as excess and left out of the comparison.</div>
+  <header class="site-header">
+    <span class="eyebrow">A-level · IB · AP · Matriculation · Year 1</span>
+    <h1 class="site-title">Limiting Reactant Trainer</h1>
   </header>
 
-  <section class="modecard">
-    <h2>Choose how much help you want</h2>
-    <div class="modes" id="modes">
-      <button class="mode active" data-mode="learn">
-        <div class="mt"><span class="dot"></span>Learning</div>
-        <div class="md">Every step worked in full — molar masses, moles, ratio, comparison and the conclusion.</div>
-      </button>
-      <button class="mode" data-mode="test">
-        <div class="mt"><span class="dot"></span>Testing</div>
-        <div class="md">Moles are filled in for you. The ratio and the limiting / excess verdict are hidden — reveal them when you're ready.</div>
-      </button>
-      <button class="mode" data-mode="verify">
-        <div class="mt"><span class="dot"></span>Verify</div>
-        <div class="md">Answers only — the key figures for each step so you can check your own working.</div>
-      </button>
-    </div>
-  </section>
+  <main>
+    <button class="back-link" id="back-link" type="button" hidden>← Back to start</button>
 
-  <section class="tablecard">
-    <div class="cap">
-      <h2>Find a reaction by element</h2>
-      <div class="legend">
-        <span><i class="l-active"></i>in a two-reactant reaction</span>
-        <span><i class="l-sel"></i>selected</span>
-        <span><i class="l-off"></i>not available</span>
-      </div>
-    </div>
-    <div class="ptscroll"><div class="ptable" id="ptable"></div></div>
-  </section>
+    <div class="wizard-stage">
 
-  <div class="controls">
-    <select id="catsel" aria-label="Reaction type"></select>
-    <div class="seg" id="matchmode" title="When several elements are selected">
-      <button data-match="all" class="active">Match all</button>
-      <button data-match="any">Match any</button>
-    </div>
-    <button class="btn-clear" id="clear">Clear</button>
-  </div>
-
-  <div class="statusbar">
-    <div class="selchips" id="selchips"></div>
-    <div class="count" id="count"></div>
-  </div>
-
-  <div class="list" id="list"></div>
-
-  <section class="calc hidden" id="calc">
-    <div class="calc-head">
-      <div class="lab">Selected reaction</div>
-      <div class="calc-eq" id="calcEq"></div>
-      <div id="calcNote"></div>
-    </div>
-    <div class="inputs" id="inputs"></div>
-    <div class="steps">
-      <div class="stepsbar">
-        <span class="t">Worked method</span>
-        <div style="display:flex;gap:8px;align-items:center">
-          <span class="modepill" id="modePill">Learning</span>
-          <button class="revealall" id="revealAll" style="display:none">Reveal all</button>
+      <!-- ============ CARD 0 · LANDING ============ -->
+      <div class="wizard-card" id="card-landing">
+        <div class="landing-content" id="landing-content">
+          <p class="hero-lead" id="hero-lead">I want to…</p>
+          <div class="choice-grid">
+            <button class="choice-card" data-choose="learn" type="button">
+              <span class="choice-verb">Learn</span>
+              <span class="choice-desc">Walk me through finding the limiting reactant, one step at a time — the thinking first, then the numbers.</span>
+            </button>
+            <button class="choice-card choice-card--amber" data-choose="test" type="button">
+              <span class="choice-verb">Check my understanding</span>
+              <span class="choice-desc">Give me the moles, then let me work out the ratio and the verdict myself before revealing.</span>
+            </button>
+            <button class="choice-card choice-card--gold" data-choose="verify" type="button">
+              <span class="choice-verb">Verify my answer</span>
+              <span class="choice-desc">I have already worked it out. Show me the key figures so I can compare.</span>
+            </button>
+          </div>
         </div>
       </div>
-      <div id="stepsOut"></div>
+
+      <!-- ============ CARD 1 · REACTION PICKER (periodic table) ============ -->
+      <div class="wizard-card prompt-card" id="card-picker" hidden>
+        <span class="prompt-step">Step 1</span>
+        <p class="prompt-question">Find your reaction by tapping its elements</p>
+
+        <div class="tablewrap">
+          <div class="legend">
+            <span><i class="l-active"></i>in a two-reactant reaction</span>
+            <span><i class="l-sel"></i>selected</span>
+            <span><i class="l-off"></i>not available</span>
+          </div>
+          <div class="ptscroll"><div class="ptable" id="ptable"></div></div>
+        </div>
+
+        <div class="controls">
+          <select id="catsel" class="select" aria-label="Reaction type"></select>
+          <div class="seg" id="matchmode" title="When several elements are selected">
+            <button data-match="all" class="active" type="button">Match all</button>
+            <button data-match="any" type="button">Match any</button>
+          </div>
+          <button class="btn btn--ghost" id="clear" type="button">Clear</button>
+        </div>
+
+        <div class="statusbar">
+          <div class="selchips" id="selchips"></div>
+          <div class="count" id="count"></div>
+        </div>
+
+        <div class="list" id="list"></div>
+      </div>
+
+      <!-- ============ CARD 2 · MEASUREMENTS ============ -->
+      <div class="wizard-card prompt-card" id="card-measure" hidden>
+        <span class="prompt-step">Step 2</span>
+        <p class="prompt-question">How much of each reactant do you have?</p>
+        <div class="calc-eq" id="measureEq"></div>
+        <div id="measureNote"></div>
+        <div class="inputs" id="inputs"></div>
+        <p class="form-error" id="measure-error" hidden></p>
+        <button class="btn btn--primary" id="measure-continue" type="button">Continue →</button>
+        <div class="wizard-back-row">
+          <button class="btn btn--ghost" id="measure-back" type="button">← Choose a different reaction</button>
+        </div>
+      </div>
+
+      <!-- ============ CARD 3 · STRATEGY ============ -->
+      <div class="wizard-card step-combo" id="card-strategy" hidden>
+        <div class="step-strategy-zone">
+          <span class="strategy-eyebrow">Strategy</span>
+          <p class="strategy-instruction" id="strategy-instruction"></p>
+          <p class="strategy-text" id="strategy-text"></p>
+          <p class="strategy-footnote" id="strategy-footnote" hidden></p>
+        </div>
+        <div class="step-combo-actions">
+          <button class="btn btn--primary" id="strategy-continue" type="button">Continue →</button>
+          <button class="btn btn--ghost" id="strategy-back" type="button">← Back to amounts</button>
+        </div>
+      </div>
+
+      <!-- ============ CARD 4a · LEARN — one step at a time ============ -->
+      <div class="wizard-card step-combo" id="card-learn" hidden>
+        <div class="step-strategy-zone">
+          <span class="strategy-eyebrow" id="learn-eyebrow">Step 1</span>
+          <p class="strategy-instruction" id="learn-instruction"></p>
+          <p class="strategy-text" id="learn-strategy"></p>
+          <p class="strategy-footnote" id="learn-footnote" hidden></p>
+        </div>
+        <div class="step-calc-zone">
+          <span class="math-eyebrow">Calculation</span>
+          <div class="math-typed" id="learn-math"></div>
+        </div>
+        <div class="step-combo-actions">
+          <button class="btn btn--primary" id="learn-next" type="button">Show the calculation</button>
+        </div>
+      </div>
+
+      <!-- ============ CARD 4b · PRACTISE — one step at a time ============ -->
+      <div class="wizard-card step-combo" id="card-prac" hidden>
+        <div class="step-strategy-zone">
+          <span class="strategy-eyebrow" id="prac-eyebrow">Step 1</span>
+          <p class="strategy-instruction" id="prac-instruction"></p>
+          <p class="strategy-text" id="prac-strategy"></p>
+        </div>
+        <div class="step-calc-zone">
+          <div id="prac-body"></div>
+        </div>
+        <div class="step-combo-actions">
+          <button class="btn btn--primary" id="prac-next" type="button" hidden>Next step →</button>
+        </div>
+      </div>
+
+      <!-- ============ CARD 4c · VERIFY — answers only ============ -->
+      <div class="wizard-card worksheet" id="card-verify" hidden>
+        <div class="worksheet-header">
+          <span class="strategy-eyebrow">Answers only</span>
+          <p class="worksheet-title" id="verify-title">Key figures for each step</p>
+        </div>
+        <div class="worksheet-body" id="verify-body"></div>
+        <div class="step-combo-actions worksheet-actions">
+          <button class="btn btn--primary" id="verify-again" type="button">Try different amounts</button>
+          <button class="btn btn--ghost" id="verify-restart" type="button">Start again</button>
+        </div>
+      </div>
+
+      <!-- ============ CARD 5 · VERDICT (learn + practise) ============ -->
+      <div class="wizard-card verdict-card" id="card-verdict" hidden>
+        <span class="strategy-eyebrow">Conclusion</span>
+        <p class="verdict-headline" id="verdict-headline"></p>
+        <p class="verdict-body" id="verdict-body"></p>
+        <div class="verdict-actions">
+          <button class="btn btn--primary" id="verdict-again" type="button">Try different amounts</button>
+          <button class="btn btn--ghost" id="verdict-restart" type="button">Start again</button>
+        </div>
+      </div>
+
     </div>
-  </section>
+  </main>
 
-  <footer>
+  <footer class="site-footer">
     <div><b>How it works:</b> moles <code>n = m ÷ M</code>. For <code>aA + bB → …</code> the amount of B needed to use up all the A is <code>n(A) × b/a</code>. If that's more than you have, B runs out first (B is limiting); if it's less, A runs out first. The reactant left over is the one in excess.</div>
-    <div style="margin-top:8px">Relative atomic masses follow common data-booklet values (H = 1.0, O = 16.0, Cl = 35.5, Cu = 63.5 …). State symbols and spectator H⁺/OH⁻ are omitted. Always re-check against your own mark scheme.</div>
+    <div style="margin-top:8px">Relative atomic masses follow common data-booklet values (H = 1.0, O = 16.0, Cl = 35.5, Cu = 63.5 …). State symbols and spectator H⁺/OH⁻ are omitted. Molar gas volume: 24.0 dm³ mol⁻¹ at RTP, 22.4 dm³ mol⁻¹ at STP. Always re-check against your own mark scheme.</div>
   </footer>
-
-</div>
 
   <script src="chemistry.js"></script>
   <script src="app.js"></script>
