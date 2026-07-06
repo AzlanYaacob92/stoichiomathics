@@ -115,7 +115,12 @@
   /* ---------------- stacked-equation grid ----------------
      The quantity left of the first '=' appears once; every following
      '='-separated segment gets its own row with the '=' signs stacked in a
-     shared column. Same as the Concentration Trainer's mathGrid(). */
+     shared column. Each row's cells (lhs / '=' / rhs, or a solo span) are
+     wrapped in one `.eq-row` container that participates in the outer grid
+     via `grid-template-columns: subgrid` — so the '=' signs still line up
+     across rows, but each row is a single element. That single element is
+     what the typewriter animates, so a line types as one continuous
+     left-to-right sweep instead of the lhs and rhs wiping separately. */
   function splitTopLevelEquals(line) {
     const parts = [];
     let depth = 0, cur = '';
@@ -132,51 +137,45 @@
 
   function mathGrid(html) {
     const lines = String(html).split(/<br\s*\/?>/i);
-    let cells = '';
+    let rows = '';
     let row = 0;
     lines.forEach(line => {
       const segs = splitTopLevelEquals(line);
       if (segs.length === 1) {
         row += 1;
-        cells += `<span class="eq-seg eq-solo" style="grid-column:1 / -1;grid-row:${row}">${segs[0]}</span>`;
+        rows += `<span class="eq-row" style="grid-row:${row}"><span class="eq-seg eq-solo" style="grid-column:1 / -1">${segs[0]}</span></span>`;
         return;
       }
       segs.slice(1).forEach((seg, si) => {
         row += 1;
-        if (si === 0) {
-          cells += `<span class="eq-seg eq-lhs" style="grid-column:1;grid-row:${row}">${segs[0]}</span>`;
-        }
-        cells += `<span class="eq-op" style="grid-column:2;grid-row:${row}">=</span>`;
-        cells += `<span class="eq-seg eq-rhs" style="grid-column:3;grid-row:${row}">${seg}</span>`;
+        const lhs = si === 0 ? `<span class="eq-seg eq-lhs" style="grid-column:1">${segs[0]}</span>` : `<span class="eq-seg eq-lhs" style="grid-column:1"></span>`;
+        rows += `<span class="eq-row" style="grid-row:${row}">${lhs}<span class="eq-op" style="grid-column:2">=</span><span class="eq-seg eq-rhs" style="grid-column:3">${seg}</span></span>`;
       });
     });
-    return `<span class="eqgrid" style="grid-template-columns:max-content max-content minmax(0, max-content)">${cells}</span>`;
+    return `<span class="eqgrid" style="grid-template-columns:max-content max-content minmax(0, max-content)">${rows}</span>`;
   }
 
-  /* Typewriter reveal for a math grid: each equation row wipes into view
-     left-to-right (a stepped clip, so it reads like typing), one line after
-     another. Fraction bars stay intact because the wipe never breaks markup. */
+  /* Typewriter reveal for a math grid: each equation row (lhs + '=' + rhs,
+     as one element) wipes into view in a single left-to-right pass, one
+     line after another. Fraction bars stay intact because the clip-path
+     wipe never breaks markup — it just reveals more of the same row. */
   function typewriterMathGrid(el, html) {
     el.innerHTML = mathGrid(html);
     if (prefersReducedMotion) return;
     try {
       const grid = el.querySelector('.eqgrid');
       if (!grid) return;
-      const byRow = new Map();
-      Array.from(grid.children).forEach(c => {
-        const r = c.style.gridRow || '1';
-        if (!byRow.has(r)) byRow.set(r, []);
-        byRow.get(r).push(c);
-      });
+      const rowsEls = Array.from(grid.querySelectorAll('.eq-row'));
       let delay = 0;
-      byRow.forEach(rowCells => {
-        rowCells.forEach((c, ci) => {
-          c.classList.add('typewipe');
-          // the '=' sign and right-hand side start a beat after the LHS,
-          // so within each line the wipe travels left → right
-          c.style.animationDelay = (delay + ci * 140) + 'ms';
-        });
-        delay += 620;
+      rowsEls.forEach(rowEl => {
+        const len = Math.max(rowEl.textContent.length, 4);
+        const steps = Math.max(10, Math.min(60, Math.round(len * 1.4)));
+        const duration = steps * 26; // ms — consistent typing speed regardless of line length
+        rowEl.classList.add('typewipe');
+        rowEl.style.setProperty('--tw-steps', steps);
+        rowEl.style.animationDuration = duration + 'ms';
+        rowEl.style.animationDelay = delay + 'ms';
+        delay += duration + 160;
       });
     } catch (e) { /* content already shown; animation is best-effort */ }
   }
@@ -600,7 +599,7 @@
     const { steps, idx } = state.learn;
     const s = steps[idx];
     learnEyebrow.textContent = `Step ${idx + 1} of ${steps.length}`;
-    learnInstruction.textContent = s.instruction;
+    learnInstruction.innerHTML = s.instruction;
     learnStrategy.innerHTML = s.strategy;
     if (s.footnote) { learnFootnote.innerHTML = s.footnote; learnFootnote.hidden = false; }
     else { learnFootnote.hidden = true; }
@@ -676,7 +675,7 @@
     const { steps, idx } = state.prac;
     const s = steps[idx];
     pracEyebrow.textContent = `Step ${idx + 1} of ${steps.length}`;
-    pracInstruction.textContent = s.instruction;
+    pracInstruction.innerHTML = s.instruction;
     pracStrategy.innerHTML = s.strategy;
     state.prac.revealed = false;
     state.prac.guess = null;

@@ -54,6 +54,12 @@
   --exc: #2563eb;
   --exc-soft: #dbeafe;
 
+  /* reaction-category accent colours (used as translucent tag backgrounds) */
+  --c-neut:#2563eb; --c-ametal:#db2777; --c-carb:#b45309; --c-oxide:#c2410c;
+  --c-comb:#dc2626; --c-precip:#7c3aed; --c-decomp:#059669; --c-disp:#0891b2;
+  --c-synth:#0284c7; --c-titr:#9333ea; --c-elec:#ca8a04; --c-complex:#c026d3;
+  --c-pblock:#4f46e5; --c-gasform:#65a30d;
+
   --shadow: 0 1px 2px rgba(19, 78, 74, .06), 0 8px 24px rgba(19, 78, 74, .06);
   --radius: 14px;
 
@@ -113,6 +119,12 @@
   --lim: #2dd4bf;
   --exc: #60a5fa;
   --exc-soft: #142436;
+
+  /* brighter category accents, legible against the dark navy card */
+  --c-neut:#60a5fa; --c-ametal:#f472b6; --c-carb:#fbbf24; --c-oxide:#fb923c;
+  --c-comb:#f87171; --c-precip:#a78bfa; --c-decomp:#34d399; --c-disp:#22d3ee;
+  --c-synth:#38bdf8; --c-titr:#c084fc; --c-elec:#facc15; --c-complex:#e879f9;
+  --c-pblock:#818cf8; --c-gasform:#a3e635;
 
   --shadow: 0 18px 40px -20px rgba(0, 0, 0, .85);
 }
@@ -546,10 +558,23 @@ main { max-width: 900px; margin: 0 auto; padding: 8px 24px 0; }
 
 .eqgrid {
   display: inline-grid;
+  grid-template-columns: max-content max-content minmax(0, max-content);
   align-items: center;
   row-gap: 6px;
   column-gap: 0;
   max-width: 100%;
+}
+/* Each equation line is ONE element spanning all three outer columns, laid
+   out internally with `subgrid` so its lhs / '=' / rhs still align with
+   every other line's columns. Because a line is a single element, a single
+   clip-path wipe on it sweeps continuously left-to-right across the whole
+   line — lhs, '=', and rhs all reveal in one pass, not two. */
+.eqgrid .eq-row {
+  display: grid;
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
+  column-gap: 0;
+  align-items: center;
 }
 .eqgrid .eq-seg { white-space: nowrap; }
 .eqgrid .eq-op { padding: 0 .6em; }
@@ -558,15 +583,24 @@ main { max-width: 900px; margin: 0 auto; padding: 8px 24px 0; }
 .eqgrid .eq-solo { justify-self: start; }
 .eqgrid sub { font-size: .7em; } .eqgrid sup { font-size: .7em; }
 
-/* typewriter wipe: each equation line is revealed left-to-right with a
-   stepped clip, one line after another (delays set inline by app.js) */
+/* typewriter wipe: one continuous left-to-right reveal per line. Step count
+   is set per-row by app.js (via --tw-steps) so longer lines still read as
+   a single steady typing speed rather than a fixed-length animation. */
 .eqgrid .typewipe {
+  --tw-steps: 24;
   clip-path: inset(0 100% 0 0);
-  animation: typewipe .55s steps(22, end) forwards;
+  animation-name: typewipe;
+  animation-timing-function: steps(var(--tw-steps), end);
+  animation-fill-mode: forwards;
 }
 @keyframes typewipe {
   from { clip-path: inset(0 100% 0 0); }
   to   { clip-path: inset(0 0 0 0); }
+}
+@supports not (grid-template-columns: subgrid) {
+  /* Fallback for browsers without subgrid: each row still renders and
+     types correctly, just without cross-row '=' alignment. */
+  .eqgrid .eq-row { grid-template-columns: max-content max-content minmax(0, max-content); }
 }
 @media (prefers-reduced-motion: reduce) {
   .eqgrid .typewipe { clip-path: none; animation: none; }

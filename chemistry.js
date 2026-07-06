@@ -31,7 +31,8 @@ const CAT = {
   pblock:{label:"p-block (groups 13–17)",color:"var(--c-pblock)"},
   synth:{label:"Synthesis / industrial",color:"var(--c-synth)"},
   titr:{label:"Redox titration (ionic)",color:"var(--c-titr)"},
-  elec:{label:"Electrolysis",color:"var(--c-elec)"}
+  elec:{label:"Electrolysis",color:"var(--c-elec)"},
+  gasform:{label:"Acid + salt (gas-forming)",color:"var(--c-gasform)"}
 };
 
 /* ---- Formula notation: species/equation string -> HTML ------------------- */
@@ -456,7 +457,48 @@ const R = [
   {eq:"Co^2+ + 6NH3 -> [Co(NH3)6]^2+", cat:"complex", cond:"ligand exchange"},
   {eq:"Zn^2+ + 4NH3 -> [Zn(NH3)4]^2+", cat:"complex", cond:"colourless"},
   {eq:"Fe^3+ + 6CN^- -> [Fe(CN)6]^3-", cat:"complex", cond:"hexacyanoferrate(III)"},
-  {eq:"Cu^2+ + 4Cl^- -> [CuCl4]^2-", cat:"complex", cond:"yellow-green"}
+  {eq:"Cu^2+ + 4Cl^- -> [CuCl4]^2-", cat:"complex", cond:"yellow-green"},
+
+  /* ===== added reactions (round 3 — sourced from Chemistry: The Central
+     Science 14e and the Inorganic Chemistry LibreText; each balanced and
+     mass-checked before inclusion) ===== */
+  {eq:"Mn + Pb(NO3)2 -> Mn(NO3)2 + Pb", cat:"disp"},
+  {eq:"Fe + Ni(NO3)2 -> Fe(NO3)2 + Ni", cat:"disp"},
+  {eq:"Cu + 4HNO3 -> Cu(NO3)2 + 2H2O + 2NO2", cat:"disp", cond:"conc. HNO₃"},
+  {eq:"3Cu + 8HNO3 -> 3Cu(NO3)2 + 4H2O + 2NO", cat:"disp", cond:"dilute HNO₃"},
+  {eq:"K3PO4 + 3AgNO3 -> Ag3PO4 + 3KNO3", cat:"precip"},
+  {eq:"Br2 + 2K -> 2KBr", cat:"synth"},
+  {eq:"2LiOH + CO2 -> Li2CO3 + H2O", cat:"synth", cond:"CO₂ scrubbing"},
+  {eq:"Na2SiO3 + 8HF -> H2SiF6 + 2NaF + 3H2O", cat:"pblock", cond:"glass etching"},
+  {eq:"4KO2 + 2CO2 -> 2K2CO3 + 3O2", cat:"synth", cond:"rebreather O₂ supply"},
+  {eq:"3NaHCO3 + H3C6H5O7 -> 3CO2 + 3H2O + Na3C6H5O7", cat:"carb", cond:"Alka-Seltzer fizz"},
+  {eq:"2HCl + Na2S -> H2S + 2NaCl", cat:"gasform"},
+  {eq:"2NaCN + H2SO4 -> Na2SO4 + 2HCN", cat:"gasform"},
+  {eq:"Mg3N2 + 6H2O -> 3Mg(OH)2 + 2NH3", cat:"synth", cond:"nitride hydrolysis"},
+  {eq:"Sc2O3 + 6HNO3 -> 2Sc(NO3)3 + 3H2O", cat:"oxide"},
+  {eq:"NiO + 2HNO3 -> Ni(NO3)2 + H2O", cat:"oxide"},
+  {eq:"Bi2O3 + 6HNO3 -> 2Bi(NO3)3 + 3H2O", cat:"oxide"},
+  {eq:"Mn2O3 + 6HCl -> 2MnCl3 + 3H2O", cat:"oxide"},
+  {eq:"SeO2 + 2NaOH -> Na2SeO3 + H2O", cat:"pblock"},
+  {eq:"SeO2 + H2O -> H2SeO3", cat:"pblock"},
+  {eq:"SiO2 + 2F2 -> SiF4 + O2", cat:"pblock"},
+  {eq:"2Na + O2 -> Na2O2", cat:"comb", cond:"sodium peroxide"},
+  {eq:"K + O2 -> KO2", cat:"comb", cond:"potassium superoxide"},
+  {eq:"2Cs + Cl2 -> 2CsCl", cat:"synth"},
+  {eq:"2Cs + 2H2O -> 2CsOH + H2", cat:"disp"},
+  {eq:"Mg + H2O -> MgO + H2", cat:"disp", cond:"steam"},
+  {eq:"Pb + Cl2 -> PbCl2", cat:"synth"},
+  {eq:"Mg2Si + 4H2O -> SiH4 + 2Mg(OH)2", cat:"pblock", cond:"silane synthesis"},
+  {eq:"GeCl4 + 2H2O -> GeO2 + 4HCl", cat:"pblock", cond:"hydrolysis"},
+  {eq:"Sn + 2H2O -> SnO2 + 2H2", cat:"disp", cond:"steam"},
+  {eq:"I2 + F2 -> 2IF", cat:"pblock", cond:"interhalogen, low temp"},
+  {eq:"I2 + AgF -> IF + AgI", cat:"pblock", cond:"halogen exchange"},
+  {eq:"I2 + 3XeF2 -> 2IF3 + 3Xe", cat:"pblock", cond:"noble-gas fluorinating agent"},
+  {eq:"Cd + Ni^2+ -> Cd^2+ + Ni", cat:"disp", cond:"Ni–Cd battery"},
+  {eq:"Mn(OH)2 + 2HBr -> MnBr2 + 2H2O", cat:"neut"},
+  {eq:"4Cr + 3O2 -> 2Cr2O3", cat:"comb", cond:"Δ"},
+  {eq:"Ti + 2F2 -> TiF4", cat:"pblock", cond:"F₂ in excess"},
+  {eq:"CO + Cl2 -> COCl2", cat:"synth", cond:"phosgene synthesis, catalysed"}
 ];
 /* ---- Qualifying set: exactly two reactants after dropping spectators ------ */
 const QUAL = [];
