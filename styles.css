@@ -148,6 +148,8 @@
 [data-theme="dark"] .verdict-card { background: #0e2e2a; }
 [data-theme="dark"] .worksheet-header { background: #0e2e2a; }
 [data-theme="dark"] .chip--lim { color: #06231f; }
+[data-theme="dark"] .choice-card--teal { box-shadow: var(--shadow), 0 0 18px rgba(45, 212, 191, .28); }
+[data-theme="dark"] .choice-card--teal:hover { box-shadow: 0 10px 30px rgba(19, 78, 74, .12), 0 0 32px rgba(45, 212, 191, .55); }
 [data-theme="dark"] .choice-card--gold { box-shadow: var(--shadow), 0 0 18px rgba(245, 185, 66, .28); }
 [data-theme="dark"] .choice-card--gold:hover { box-shadow: 0 10px 30px rgba(19, 78, 74, .12), 0 0 32px rgba(245, 185, 66, .55); }
 [data-theme="dark"] .choice-card--lilac:hover { box-shadow: 0 10px 30px rgba(19, 78, 74, .12), 0 0 32px rgba(167, 139, 250, .6); }
@@ -281,6 +283,7 @@ main { max-width: 900px; margin: 0 auto; padding: 8px 24px 0; }
   border-left: 5px solid var(--teal-600);
   font-family: inherit;
 }
+.choice-card--teal { border-left-color: var(--teal-600); border-color: var(--teal-100); }
 .choice-card--lilac {
   border-left-color: var(--lilac-600);
   border-color: var(--lilac-100);
