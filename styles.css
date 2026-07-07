@@ -21,6 +21,10 @@
 
   --gold: #b45309;
 
+  --lilac-600: #7c3aed;
+  --lilac-100: #ede9fe;
+  --lilac-glow: rgba(124, 58, 237, 0);
+
   --bg:    #faf7f1;
   --card:  #ffffff;
   --ink:   #23302f;
@@ -105,6 +109,10 @@
 
   --gold: #f5b942;
 
+  --lilac-600: #a78bfa;
+  --lilac-100: #3b2e63;
+  --lilac-glow: rgba(167, 139, 250, .45);
+
   --pt-on-bg:     #0f3b37;
   --pt-on-ink:    #aef3ea;
   --pt-on-border: #2a6b63;
@@ -140,6 +148,9 @@
 [data-theme="dark"] .verdict-card { background: #0e2e2a; }
 [data-theme="dark"] .worksheet-header { background: #0e2e2a; }
 [data-theme="dark"] .chip--lim { color: #06231f; }
+[data-theme="dark"] .choice-card--gold { box-shadow: var(--shadow), 0 0 18px rgba(245, 185, 66, .28); }
+[data-theme="dark"] .choice-card--gold:hover { box-shadow: 0 10px 30px rgba(19, 78, 74, .12), 0 0 32px rgba(245, 185, 66, .55); }
+[data-theme="dark"] .choice-card--lilac:hover { box-shadow: 0 10px 30px rgba(19, 78, 74, .12), 0 0 32px rgba(167, 139, 250, .6); }
 
 * { box-sizing: border-box; }
 
@@ -270,16 +281,21 @@ main { max-width: 900px; margin: 0 auto; padding: 8px 24px 0; }
   border-left: 5px solid var(--teal-600);
   font-family: inherit;
 }
-.choice-card--amber { border-left-color: var(--amber-500); border-color: var(--amber-100); }
+.choice-card--lilac {
+  border-left-color: var(--lilac-600);
+  border-color: var(--lilac-100);
+  box-shadow: var(--shadow), 0 0 18px var(--lilac-glow);
+}
 .choice-card--gold  { border-left-color: var(--gold); border-color: var(--amber-100); }
 .choice-card:hover { transform: translateY(-3px); box-shadow: 0 10px 30px rgba(19, 78, 74, .12); }
+.choice-card--lilac:hover { box-shadow: 0 10px 30px rgba(19, 78, 74, .12), 0 0 30px var(--lilac-glow); }
 .choice-card:active { transform: translateY(-1px) scale(.99); transition-duration: .12s; }
 .choice-verb {
   font-family: var(--display);
   font-size: 1.4rem;
   color: var(--teal-900);
 }
-.choice-card--amber .choice-verb { color: var(--amber-600); }
+.choice-card--lilac .choice-verb { color: var(--lilac-600); }
 .choice-card--gold .choice-verb { color: var(--gold); }
 .choice-desc { color: var(--muted); font-size: .95rem; font-family: var(--display); }
 
