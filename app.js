@@ -197,17 +197,27 @@
   const state = {
     mode: null,             // 'learn' | 'test' | 'verify'
     cat: "all", els: new Set(), matchMode: "all",
-    sel: null,
+    sel: null,              // a QUAL index, or the string 'custom'
     inA: freshInput(), inB: freshInput(),
     learn: null,            // { steps, idx, calcShown }
-    prac: null              // { steps, idx, revealed, guess }
+    prac: null,             // { steps, idx, revealed, guess }
+    customCount: 1,         // number of products chosen in the custom builder (1–4)
+    customFields: null,     // working {coef, name} rows while the builder is open — session-only, never saved
+    customQ: null           // the built custom reaction, same shape as a QUAL entry
   };
   const MODE_VERB = { learn: 'Learn', test: 'Check my understanding', verify: 'Verify my answer' };
+
+  // Every place downstream (measure/strategy/learn/practice/verify) reads the
+  // active reaction through this, so a custom, session-only reaction can sit
+  // alongside the QUAL database without ever being written into it.
+  function currentQ() { return state.sel === 'custom' ? state.customQ : QUAL[state.sel]; }
 
   /* ---------------- cards + navigation ---------------- */
   const cards = {
     landing: document.getElementById('card-landing'),
     picker:  document.getElementById('card-picker'),
+    customSetup: document.getElementById('card-custom-setup'),
+    customBuild: document.getElementById('card-custom-build'),
     measure: document.getElementById('card-measure'),
     strategy:document.getElementById('card-strategy'),
     learn:   document.getElementById('card-learn'),
@@ -232,6 +242,7 @@
     state.mode = null; state.sel = null;
     state.inA = freshInput(); state.inB = freshInput();
     state.learn = null; state.prac = null;
+    state.customCount = 1; state.customFields = null; state.customQ = null;
     renderCatalog();
   }
 
@@ -302,9 +313,23 @@
     const list = document.getElementById('list');
     const count = document.getElementById('count');
 
+    const notListedCard = `<div class="rx rx--custom" id="rx-not-listed">
+      <div class="idx">+</div>
+      <div class="rxbody">
+        <div class="eq">My reaction is not listed</div>
+        <div class="meta"><span class="cond">Build your own equation and use the same working</span></div>
+      </div>
+      <div class="pick">Build →</div>
+    </div>`;
+    function wireNotListed() {
+      const el = document.getElementById('rx-not-listed');
+      if (el) el.addEventListener('click', goToCustomSetup);
+    }
+
     if (!filtering) {
       count.innerHTML = '';
-      list.innerHTML = '<div class="empty">Tap one or more <b>lit elements</b> in the table above to surface a matching reaction — then pick it to continue.<br><span class="empty-faint">Dim elements don\u2019t appear in any two-reactant reaction.</span></div>';
+      list.innerHTML = '<div class="empty">Tap one or more <b>lit elements</b> in the table above to surface a matching reaction — then pick it to continue.<br><span class="empty-faint">Dim elements don\u2019t appear in any two-reactant reaction.</span></div>' + notListedCard;
+      wireNotListed();
       return;
     }
 
@@ -313,7 +338,8 @@
     if (!out.length) {
       list.innerHTML = '<div class="empty">No two-reactant reaction contains ' +
         (state.matchMode === 'all' && state.els.size > 1 ? '<b>all</b> of those elements together' : 'that combination') +
-        '.<br>Try <b>Match any</b>, remove an element, or clear the filters.</div>';
+        '.<br>Try <b>Match any</b>, remove an element, or clear the filters.</div>' + notListedCard;
+      wireNotListed();
       return;
     }
     list.innerHTML = out.map(q => {
@@ -330,8 +356,9 @@
         </div>
         <div class="pick">Use →</div>
       </div>`;
-    }).join('');
+    }).join('') + notListedCard;
     list.querySelectorAll('[data-id]').forEach(el => el.addEventListener('click', () => selectReaction(+el.dataset.id)));
+    wireNotListed();
   }
 
   function toggleEl(sym) {
@@ -356,6 +383,141 @@
      the measurements card in — the table never clutters the working view. */
   function selectReaction(id) {
     state.sel = id;
+    state.inA = freshInput(); state.inB = freshInput();
+    state.learn = null; state.prac = null;
+    goTo('measure', 'forward', renderMeasure);
+  }
+
+  /* ================= custom reaction builder =================
+     Reactants stay fixed at two, matching the two-reactant limiting-reactant
+     engine used everywhere else. Product count (1–4) is free, since products
+     never feed the maths — they are typeset only. Nothing here is persisted:
+     the built reaction lives in state.customQ for this session only. */
+  const PROD_LETTERS = ['c', 'd', 'e', 'f'];
+  const FORMULA_RE = /^[A-Za-z(][A-Za-z0-9()[\]^+-]*$/;
+
+  function goToCustomSetup() {
+    goTo('customSetup', 'forward', renderCustomSetup);
+  }
+
+  const prodcountEl = document.getElementById('prodcount');
+  function renderCustomSetup() {
+    prodcountEl.innerHTML = [1, 2, 3, 4].map(n =>
+      `<button data-n="${n}" class="${n === state.customCount ? 'active' : ''}" type="button">${n}</button>`).join('');
+    prodcountEl.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+      state.customCount = +b.dataset.n;
+      prodcountEl.querySelectorAll('button').forEach(x => x.classList.toggle('active', x === b));
+    }));
+  }
+  document.getElementById('custom-setup-back').addEventListener('click', () => goTo('picker', 'back'));
+  document.getElementById('custom-setup-continue').addEventListener('click', () => {
+    // (Re)build the field list to match the chosen product count, keeping
+    // any names/coefficients already typed for slots that still exist.
+    const prevFields = state.customFields;
+    const reactants = [0, 1].map(i => (prevFields && prevFields.reactants[i]) || { coef: '1', name: '' });
+    const products = Array.from({ length: state.customCount }, (_, i) =>
+      (prevFields && prevFields.products[i]) || { coef: '1', name: '' });
+    state.customFields = { reactants, products };
+    goTo('customBuild', 'forward', renderCustomBuild);
+  });
+
+  function customEqPreview() {
+    const { reactants, products } = state.customFields;
+    const side = arr => arr.map(f => {
+      const n = f.coef !== '' ? Number(f.coef) : NaN;
+      return (isFinite(n) && n > 1 ? n : '') + (f.name || '…');
+    }).join(' + ');
+    return side(reactants) + ' -> ' + side(products);
+  }
+
+  function customFieldCard(label, letter, side, idx, field) {
+    return `<div class="customfield">
+      <div class="cf-label">${label}</div>
+      <div class="coefrow">
+        <input class="num-input coef-input" type="number" min="1" step="1" value="${field.coef}"
+          data-side="${side}" data-idx="${idx}" data-role="coef" aria-label="${letter} coefficient">
+        <input class="num-input name-input" type="text" value="${field.name}" placeholder="e.g. H2SO4"
+          data-side="${side}" data-idx="${idx}" data-role="name" aria-label="${letter} formula" autocomplete="off" spellcheck="false">
+      </div>
+      <div class="formula-preview" data-side="${side}" data-idx="${idx}">${field.name ? fmtFormula(field.name) : ''}</div>
+    </div>`;
+  }
+
+  function renderCustomBuild() {
+    const { reactants, products } = state.customFields;
+    document.getElementById('customReactants').innerHTML =
+      customFieldCard('Reactant A', 'a', 'reactant', 0, reactants[0]) +
+      customFieldCard('Reactant B', 'b', 'reactant', 1, reactants[1]);
+    document.getElementById('customProducts').innerHTML =
+      products.map((f, i) => customFieldCard(`Product ${PROD_LETTERS[i].toUpperCase()}`, PROD_LETTERS[i], 'product', i, f)).join('');
+    document.getElementById('custom-error').hidden = true;
+    updateCustomPreview();
+    wireCustomBuild();
+  }
+
+  function updateCustomPreview() {
+    document.getElementById('customPreview').innerHTML = fmtEq(customEqPreview());
+  }
+
+  function wireCustomBuild() {
+    document.querySelectorAll('#customReactants input, #customProducts input').forEach(inp => {
+      inp.addEventListener('input', e => {
+        const { side, idx, role } = e.target.dataset;
+        const arr = side === 'reactant' ? state.customFields.reactants : state.customFields.products;
+        arr[+idx][role] = e.target.value;
+        if (role === 'name') {
+          const preview = document.querySelector(`.formula-preview[data-side="${side}"][data-idx="${idx}"]`);
+          if (preview) preview.innerHTML = e.target.value ? fmtFormula(e.target.value) : '';
+        }
+        updateCustomPreview();
+      });
+    });
+  }
+
+  document.getElementById('custom-build-back').addEventListener('click', () => goTo('customSetup', 'back'));
+
+  // Validate one field: a positive-integer coefficient and a formula whose
+  // elements are all recognised. mustHaveMass gates the molar-mass check,
+  // since only reactants ever need one (products are typeset only).
+  function validateField(f, label, mustHaveMass) {
+    const name = (f.name || '').trim();
+    if (!name) return `Enter a formula for ${label}.`;
+    if (!FORMULA_RE.test(name)) return `${label}'s formula (\u201c${name}\u201d) has a character that doesn't belong in a chemical formula.`;
+    const comp = composition(name);
+    if (!Object.keys(comp).length) return `${label}'s formula (\u201c${name}\u201d) doesn't look like a valid formula.`;
+    if (mustHaveMass && molarMass(name) == null) {
+      const bad = Object.keys(comp).find(el => !(el in AM));
+      return `${label}'s formula (\u201c${name}\u201d) contains an element symbol${bad ? ` (\u201c${bad}\u201d)` : ''} that isn't recognised — check the spelling and capitalisation.`;
+    }
+    const coefN = Number(f.coef);
+    if (!(Number.isInteger(coefN) && coefN >= 1)) return `${label}'s ratio number must be a whole number of 1 or more.`;
+    return null;
+  }
+
+  document.getElementById('custom-build-continue').addEventListener('click', () => {
+    const { reactants, products } = state.customFields;
+    const err = document.getElementById('custom-error');
+    const labels = { reactant: ['Reactant A', 'Reactant B'], product: products.map((_, i) => `Product ${PROD_LETTERS[i].toUpperCase()}`) };
+    let msg = null;
+    reactants.forEach((f, i) => { msg = msg || validateField(f, labels.reactant[i], true); });
+    products.forEach((f, i) => { msg = msg || validateField(f, labels.product[i], false); });
+    if (msg) { err.textContent = msg; err.hidden = false; return; }
+    err.hidden = true;
+
+    const A = { coef: Number(reactants[0].coef), sp: reactants[0].name.trim() };
+    const B = { coef: Number(reactants[1].coef), sp: reactants[1].name.trim() };
+    const prodTokens = products.map(f => `${Number(f.coef) > 1 ? Number(f.coef) : ''}${f.name.trim()}`);
+    const eq = `${A.coef > 1 ? A.coef : ''}${A.sp} + ${B.coef > 1 ? B.coef : ''}${B.sp} -> ${prodTokens.join(' + ')}`;
+    const elset = new Set();
+    [A.sp, B.sp, ...products.map(f => f.name.trim())].forEach(sp => { const c = composition(sp); for (const k in c) elset.add(k); });
+
+    const customQ = { eq, cat: 'custom', el: [...elset], cond: '', equil: false, A, B, hadSpect: false, custom: true };
+    selectCustomReaction(customQ);
+  });
+
+  function selectCustomReaction(q) {
+    state.sel = 'custom';
+    state.customQ = q;
     state.inA = freshInput(); state.inB = freshInput();
     state.learn = null; state.prac = null;
     goTo('measure', 'forward', renderMeasure);
@@ -393,7 +555,7 @@
   }
 
   function renderMeasure() {
-    const q = QUAL[state.sel];
+    const q = currentQ();
     document.getElementById('measureEq').innerHTML = fmtEq(q.eq);
     document.getElementById('measureNote').innerHTML = q.hadSpect
       ? `<div class="note"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.01"/></svg>
@@ -404,7 +566,7 @@
   }
 
   function renderInputs() {
-    const q = QUAL[state.sel];
+    const q = currentQ();
     const cardsHtml = [['a', state.inA, q.A], ['b', state.inB, q.B]].map(([side, inp, x]) =>
       `<div class="massfield">
         <div class="who">${fmtFormula(x.sp)}${x.coef > 1 ? ` <span class="cf">coeff ${x.coef}</span>` : ''}</div>
@@ -436,11 +598,11 @@
   }
 
   document.getElementById('measure-back').addEventListener('click', () => {
-    goTo('picker', 'back');
+    goTo(state.sel === 'custom' ? 'customBuild' : 'picker', 'back', state.sel === 'custom' ? renderCustomBuild : undefined);
   });
 
   document.getElementById('measure-continue').addEventListener('click', () => {
-    const q = QUAL[state.sel];
+    const q = currentQ();
     const nA = molesOf(state.inA, q.A.sp), nB = molesOf(state.inB, q.B.sp);
     const err = document.getElementById('measure-error');
     if (!(isFinite(nA) && nA > 0 && isFinite(nB) && nB > 0)) {
@@ -454,7 +616,7 @@
 
   /* ---------------- strategy card (all branches) ---------------- */
   function renderStrategy() {
-    const q = QUAL[state.sel];
+    const q = currentQ();
     const A = q.A, B = q.B;
     const instruction = document.getElementById('strategy-instruction');
     const text = document.getElementById('strategy-text');
@@ -494,7 +656,7 @@
 
   /* ---------------- shared computation for the working ---------------- */
   function computed() {
-    const q = QUAL[state.sel];
+    const q = currentQ();
     const nA = molesOf(state.inA, q.A.sp), nB = molesOf(state.inB, q.B.sp);
     return { q, res: computeLimiting(q, nA, nB) };
   }

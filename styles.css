@@ -62,7 +62,7 @@
   --c-neut:#2563eb; --c-ametal:#db2777; --c-carb:#b45309; --c-oxide:#c2410c;
   --c-comb:#dc2626; --c-precip:#7c3aed; --c-decomp:#059669; --c-disp:#0891b2;
   --c-synth:#0284c7; --c-titr:#9333ea; --c-elec:#ca8a04; --c-complex:#c026d3;
-  --c-pblock:#4f46e5; --c-gasform:#65a30d;
+  --c-pblock:#4f46e5; --c-gasform:#65a30d; --c-custom:#64748b;
 
   --shadow: 0 1px 2px rgba(19, 78, 74, .06), 0 8px 24px rgba(19, 78, 74, .06);
   --radius: 14px;
@@ -132,7 +132,7 @@
   --c-neut:#60a5fa; --c-ametal:#f472b6; --c-carb:#fbbf24; --c-oxide:#fb923c;
   --c-comb:#f87171; --c-precip:#a78bfa; --c-decomp:#34d399; --c-disp:#22d3ee;
   --c-synth:#38bdf8; --c-titr:#c084fc; --c-elec:#facc15; --c-complex:#e879f9;
-  --c-pblock:#818cf8; --c-gasform:#a3e635;
+  --c-pblock:#818cf8; --c-gasform:#a3e635; --c-custom:#94a3b8;
 
   --shadow: 0 18px 40px -20px rgba(0, 0, 0, .85);
 }
@@ -335,7 +335,10 @@ main { max-width: 900px; margin: 0 auto; padding: 8px 24px 0; }
   color: var(--ink);
   margin: 0 0 14px;
 }
-.wizard-back-row { margin-top: 14px; }
+.wizard-back-row { margin-top: 14px; display: flex; gap: 10px; flex-wrap: wrap; }
+.prompt-subtext { font-size: .85rem; color: var(--muted); margin: -6px 0 16px; line-height: 1.5; }
+.seg--wide { display: flex; width: 100%; }
+.seg--wide button { flex: 1; padding: 12px 10px; font-size: .95rem; }
 
 /* ---------- form controls / buttons ---------- */
 .select, .num-input {
@@ -450,6 +453,36 @@ main { max-width: 900px; margin: 0 auto; padding: 8px 24px 0; }
 .empty { text-align: center; color: var(--muted); padding: 42px 20px; border: 1px dashed var(--line); border-radius: 12px; font-family: var(--display); }
 .empty b { color: var(--ink); }
 .empty-faint { color: var(--faint); }
+
+/* "my reaction is not listed" — same grid as .rx, dashed to read as an escape hatch */
+.rx--custom { border-style: dashed; background: var(--calc-bg); }
+.rx--custom:hover { border-color: var(--c-custom); }
+.rx--custom .idx { color: var(--c-custom); font-size: 19px; }
+.rx--custom .rxbody .eq { font-family: var(--body); color: var(--muted); font-style: italic; }
+.rx--custom:hover .pick { color: var(--c-custom); }
+
+/* ---------- custom-reaction builder ---------- */
+.custom-side-label {
+  font-family: var(--body); font-size: .72rem; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--muted); font-weight: 700; margin: 16px 0 8px;
+}
+.custom-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 620px) { .custom-grid { grid-template-columns: 1fr; } }
+.custom-arrow-row { text-align: center; margin: 6px 0; }
+.custom-arrow { color: var(--teal-600); font-size: 1.2rem; font-weight: 700; }
+.customfield { background: var(--calc-bg); border: 1px solid var(--line); border-radius: 12px; padding: 12px 13px; }
+.customfield .cf-label {
+  font-family: var(--body); font-size: 11px; font-weight: 700; color: var(--faint);
+  letter-spacing: .02em; text-transform: uppercase; margin-bottom: 8px;
+}
+.coefrow { display: flex; gap: 8px; }
+.coef-input { width: 56px; flex: 0 0 auto; text-align: center; font-variant-numeric: tabular-nums; }
+.name-input { flex: 1; min-width: 0; font-family: var(--mono); }
+.formula-preview {
+  margin-top: 8px; font-family: var(--mono); font-size: 15px; color: var(--ink); min-height: 20px;
+}
+.formula-preview sub { font-size: .66em; } .formula-preview sup { font-size: .66em; }
+.formula-preview:empty::before { content: '—'; color: var(--faint); }
 
 /* ---------- measurements card ---------- */
 .calc-eq {

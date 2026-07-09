@@ -32,7 +32,8 @@ const CAT = {
   synth:{label:"Synthesis / industrial",color:"var(--c-synth)"},
   titr:{label:"Redox titration (ionic)",color:"var(--c-titr)"},
   elec:{label:"Electrolysis",color:"var(--c-elec)"},
-  gasform:{label:"Acid + salt (gas-forming)",color:"var(--c-gasform)"}
+  gasform:{label:"Acid + salt (gas-forming)",color:"var(--c-gasform)"},
+  custom:{label:"Custom reaction",color:"var(--c-custom)"}
 };
 
 /* ---- Formula notation: species/equation string -> HTML ------------------- */

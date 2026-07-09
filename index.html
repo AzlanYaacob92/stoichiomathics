@@ -86,6 +86,35 @@
         <div class="list" id="list"></div>
       </div>
 
+      <!-- ============ CARD 1b · CUSTOM REACTION — SETUP ============ -->
+      <div class="wizard-card prompt-card" id="card-custom-setup" hidden>
+        <span class="prompt-step">Build your own</span>
+        <p class="prompt-question">How many products does your reaction make?</p>
+        <p class="prompt-subtext">Every custom reaction still has exactly two reactants — the same two-reactant limiting-reactant logic used throughout Stoichiomathics.</p>
+        <div class="seg seg--wide" id="prodcount" role="group" aria-label="Number of products"></div>
+        <div class="wizard-back-row">
+          <button class="btn btn--primary" id="custom-setup-continue" type="button">Continue →</button>
+          <button class="btn btn--ghost" id="custom-setup-back" type="button">← Back to reaction list</button>
+        </div>
+      </div>
+
+      <!-- ============ CARD 1c · CUSTOM REACTION — BUILD ============ -->
+      <div class="wizard-card prompt-card" id="card-custom-build" hidden>
+        <span class="prompt-step">Build your own</span>
+        <p class="prompt-question">Name your reactants and products, and set the ratio</p>
+        <div class="calc-eq" id="customPreview"></div>
+        <div class="custom-side-label">Reactants</div>
+        <div class="custom-grid" id="customReactants"></div>
+        <div class="custom-arrow-row"><span class="custom-arrow">→</span></div>
+        <div class="custom-side-label">Products</div>
+        <div class="custom-grid" id="customProducts"></div>
+        <p class="form-error" id="custom-error" hidden></p>
+        <button class="btn btn--primary" id="custom-build-continue" type="button">Build equation →</button>
+        <div class="wizard-back-row">
+          <button class="btn btn--ghost" id="custom-build-back" type="button">← Change product count</button>
+        </div>
+      </div>
+
       <!-- ============ CARD 2 · MEASUREMENTS ============ -->
       <div class="wizard-card prompt-card" id="card-measure" hidden>
         <span class="prompt-step">Step 2</span>
