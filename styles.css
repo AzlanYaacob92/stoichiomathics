@@ -380,6 +380,44 @@ main { max-width: 900px; margin: 0 auto; padding: 8px 24px 0; }
   background: var(--error-bg); border: 1px solid var(--error-border); border-radius: 8px; padding: 10px 12px;
 }
 
+/* ---------- species / formula search ---------- */
+.searchbar { position: relative; margin-bottom: 10px; }
+.text-input {
+  font-family: var(--body);
+  font-size: .95rem;
+  color: var(--ink);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 11px 14px;
+  width: 100%;
+  box-sizing: border-box;
+  transition: border-color .2s var(--ease-buttery), box-shadow .2s var(--ease-buttery);
+}
+.text-input:focus {
+  outline: 3px solid var(--teal-100);
+  border-color: var(--teal-600);
+}
+.text-input::placeholder { color: var(--faint); }
+.search-preview {
+  display: block;
+  min-height: 1.1em;
+  margin: 6px 2px 0;
+  font-family: var(--mono, monospace);
+  font-size: .85rem;
+  color: var(--teal-700);
+}
+[data-theme="dark"] .search-preview { color: var(--teal-100); }
+.search-preview:empty { display: none; }
+.searchbar-divider {
+  display: flex; align-items: center; gap: 10px;
+  font-size: .72rem; color: var(--faint); text-transform: uppercase; letter-spacing: .04em;
+  margin: 4px 0 14px;
+}
+.searchbar-divider::before, .searchbar-divider::after {
+  content: ""; flex: 1; height: 1px; background: var(--line);
+}
+
 /* ---------- periodic-table picker ---------- */
 .tablewrap { margin-bottom: 14px; }
 .legend { display: flex; gap: 14px; font-size: .72rem; color: var(--faint); align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
