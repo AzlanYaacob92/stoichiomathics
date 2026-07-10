@@ -196,7 +196,7 @@
   function freshInput() { return { method: "mass", mass: "", conc: "", cvol: "", cvolUnit: "cm3", gvol: "", gvolUnit: "dm3", cond: "RTP" }; }
   const state = {
     mode: null,             // 'learn' | 'test' | 'verify'
-    cat: "all", els: new Set(), matchMode: "all",
+    cat: "all", els: new Set(), matchMode: "all", query: "",
     sel: null,              // a QUAL index, or the string 'custom'
     inA: freshInput(), inB: freshInput(),
     learn: null,            // { steps, idx, calcShown }
@@ -288,6 +288,30 @@
   catsel.innerHTML = '<option value="all">All reaction types</option>' +
     Object.entries(CAT).filter(([k]) => presentCats.includes(k)).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join('');
 
+  // Species tokens are separated the same way stored equations join them: " + ".
+  // Each typed token is reduced to its bare formula (coefficient/charge
+  // stripped, via bareFormula()) and matched as a PREFIX against each
+  // reaction's species — so incomplete typing filters live as you go:
+  // "C2" matches "C2O4" the moment you've typed enough of it, without
+  // waiting for the full formula. Non-formula tokens (e.g. "titration")
+  // won't prefix-match any species, so the whole query then falls back to
+  // a free-text substring search over the reaction's index instead.
+  function speciesQueryMatches(q, rawQuery) {
+    const tokens = rawQuery.split(/\s+\+\s+/).map(t => t.trim()).filter(Boolean);
+    if (!tokens.length) return false;
+    return tokens.every(tok => {
+      const bare = bareFormula(tok).toLowerCase();
+      if (!bare) return false;
+      for (const bt of q.bareTexts) { if (bt.startsWith(bare)) return true; }
+      return false;
+    });
+  }
+
+  function queryMatches(q, rawQuery) {
+    if (speciesQueryMatches(q, rawQuery)) return true;
+    return q.search.includes(rawQuery.toLowerCase());
+  }
+
   function catalogPass(q) {
     if (state.cat !== 'all' && q.cat !== state.cat) return false;
     if (state.els.size) {
@@ -295,6 +319,8 @@
       if (state.matchMode === 'all') { if (!arr.every(e => q.el.includes(e))) return false; }
       else { if (!arr.some(e => q.el.includes(e))) return false; }
     }
+    const query = state.query.trim();
+    if (query && !queryMatches(q, query)) return false;
     return true;
   }
 
@@ -309,7 +335,7 @@
       `<button class="selchip" data-rm="${s}" type="button">${s}<span>×</span></button>`).join('');
     sc.querySelectorAll('[data-rm]').forEach(b => b.addEventListener('click', () => toggleEl(b.dataset.rm)));
 
-    const filtering = state.els.size > 0;
+    const filtering = state.els.size > 0 || state.query.trim().length > 0;
     const list = document.getElementById('list');
     const count = document.getElementById('count');
 
@@ -328,7 +354,7 @@
 
     if (!filtering) {
       count.innerHTML = '';
-      list.innerHTML = '<div class="empty">Tap one or more <b>lit elements</b> in the table above to surface a matching reaction — then pick it to continue.<br><span class="empty-faint">Dim elements don\u2019t appear in any two-reactant reaction.</span></div>' + notListedCard;
+      list.innerHTML = '<div class="empty">Search a species or formula above, or tap one or more <b>lit elements</b> in the table below to surface a matching reaction — then pick it to continue.<br><span class="empty-faint">Dim elements don\u2019t appear in any two-reactant reaction.</span></div>' + notListedCard;
       wireNotListed();
       return;
     }
@@ -336,9 +362,12 @@
     const out = QUAL.filter(catalogPass);
     count.innerHTML = out.length ? `<b>${out.length}</b> matching reaction${out.length > 1 ? 's' : ''}` : '';
     if (!out.length) {
-      list.innerHTML = '<div class="empty">No two-reactant reaction contains ' +
-        (state.matchMode === 'all' && state.els.size > 1 ? '<b>all</b> of those elements together' : 'that combination') +
-        '.<br>Try <b>Match any</b>, remove an element, or clear the filters.</div>' + notListedCard;
+      const query = state.query.trim();
+      const queryDisplay = query.split(/\s+\+\s+/).map(t => t.trim()).filter(Boolean).map(fmtFormula).join(' + ');
+      const reason = query
+        ? `No two-reactant reaction matches <b>${queryDisplay}</b>${state.els.size ? ' with that element combination' : ''}`
+        : 'No two-reactant reaction contains ' + (state.matchMode === 'all' && state.els.size > 1 ? '<b>all</b> of those elements together' : 'that combination');
+      list.innerHTML = `<div class="empty">${reason}.<br>Try <b>Match any</b>, remove an element, clear the search, or clear the filters.</div>` + notListedCard;
       wireNotListed();
       return;
     }
@@ -372,9 +401,28 @@
     renderCatalog();
   }));
   catsel.addEventListener('change', e => { state.cat = e.target.value; renderCatalog(); });
+
+  /* Free-text species/formula search — an alternative to tapping the table.
+     Numbers live-preview as subscripts as the user types (same renderer used
+     for the reaction cards). Species are matched as a PREFIX of the bare
+     formula (coefficient and charge stripped), so it filters live while
+     incomplete: "MnO4 + C2" already surfaces reactions containing "C2O4"
+     before the rest is typed, and "MnO4-"/"2MnO4^-"/"MnO4" all find the
+     same reactions. Non-formula text (e.g. a reaction-type name) falls
+     back to a substring search instead. */
+  const searchInput = document.getElementById('speciesSearch');
+  const searchPreview = document.getElementById('searchPreview');
+  searchInput.addEventListener('input', () => {
+    state.query = searchInput.value;
+    const q = state.query.trim();
+    searchPreview.innerHTML = q ? q.split(/\s+\+\s+/).map(t => t.trim()).filter(Boolean).map(fmtFormula).join(' + ') : '';
+    renderCatalog();
+  });
+
   document.getElementById('clear').addEventListener('click', () => {
-    state.cat = 'all'; state.els.clear(); state.matchMode = 'all';
+    state.cat = 'all'; state.els.clear(); state.matchMode = 'all'; state.query = '';
     catsel.value = 'all';
+    searchInput.value = ''; searchPreview.innerHTML = '';
     document.querySelectorAll('#matchmode button').forEach(x => x.classList.toggle('active', x.dataset.match === 'all'));
     renderCatalog();
   });
@@ -539,7 +587,7 @@
   function fieldsFor(side, inp, sp) {
     if (inp.method === 'mass') {
       const M = molarMass(sp);
-      return `<div class="hint">moles = mass ÷ M &nbsp;·&nbsp; M = ${mm1(M)} g mol⁻¹</div>
+      return `<div class="hint">moles = mass ÷ M<sub>r</sub> &nbsp;·&nbsp; M<sub>r</sub> = ${mm1(M)} g mol⁻¹</div>
         <div class="massrow"><input class="num-input" type="number" min="0" step="any" inputmode="decimal" placeholder="mass" value="${inp.mass}" data-side="${side}" data-role="mass"><span class="unit">g</span></div>`;
     }
     if (inp.method === 'conc') {
@@ -668,7 +716,7 @@
     const f = fmtFormula(sp);
     if (inp.method === 'mass') {
       const m = parseFloat(inp.mass), M = molarMass(sp);
-      return `n(${f}) = ${frac('m', 'M')} = ${frac(sig(m) + ' g', mm1(M) + ' g mol⁻¹')} = ${sig(n)} mol`;
+      return `n(${f}) = ${frac('m', 'M<sub>r</sub>')} = ${frac(sig(m) + ' g', mm1(M) + ' g mol⁻¹')} = ${sig(n)} mol`;
     }
     if (inp.method === 'conc') {
       const c = parseFloat(inp.conc); const Vr = parseFloat(inp.cvol);
@@ -685,7 +733,7 @@
 
   function moleStrategy(inp, sp) {
     const f = fmtFormula(sp);
-    if (inp.method === 'mass') return `The amount of ${f} is given as a mass, so divide by its molar mass: n = m ÷ M.`;
+    if (inp.method === 'mass') return `The amount of ${f} is given as a mass, so divide by its molar mass: n = m ÷ M<sub>r</sub>.`;
     if (inp.method === 'conc') return `The amount of ${f} is given as a solution, so multiply concentration by volume (in dm³): n = c × V.`;
     return `The amount of ${f} is a gas volume, so divide by the molar gas volume: n = V ÷ V<sub>m</sub>.`;
   }
@@ -703,7 +751,7 @@
     const parts = massParts(sp), M = molarMass(sp);
     const formula = parts.map(p => (p.n > 1 ? p.n + 'A<sub>r</sub>(' + p.el + ')' : 'A<sub>r</sub>(' + p.el + ')')).join(' + ');
     const subst = parts.map(p => (p.n > 1 ? p.n + ' × ' + mm1(p.a) : mm1(p.a))).join(' + ');
-    return `M(${fmtFormula(sp)}) = ${formula} = ${subst} = ${mm1(M)} g mol⁻¹`;
+    return `M<sub>r</sub>(${fmtFormula(sp)}) = ${formula} = ${subst} = ${mm1(M)} g mol⁻¹`;
   }
 
   /* ---------------- LEARN: build the step list ---------------- */
@@ -937,7 +985,7 @@
     const massSides = [[A, state.inA], [B, state.inB]].filter(([x, inp]) => inp.method === 'mass');
     if (massSides.length) {
       rows.push(['Molar mass' + (massSides.length > 1 ? 'es' : ''),
-        massSides.map(([x]) => `M(${fmtFormula(x.sp)}) = <b>${mm1(molarMass(x.sp))}</b> g mol⁻¹`).join('<span class="dotsep">·</span>')]);
+        massSides.map(([x]) => `M<sub>r</sub>(${fmtFormula(x.sp)}) = <b>${mm1(molarMass(x.sp))}</b> g mol⁻¹`).join('<span class="dotsep">·</span>')]);
     }
     rows.push(['Moles', `n(${fA}) = <b>${sig(res.nA)}</b> mol<span class="dotsep">·</span>n(${fB}) = <b>${sig(res.nB)}</b> mol`]);
     rows.push(['Mole ratio', `${fA} : ${fB} = <b>${A.coef} : ${B.coef}</b>`]);
