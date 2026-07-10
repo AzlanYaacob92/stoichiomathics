@@ -93,6 +93,21 @@ function composition(formula){
 function molarMass(sp){ const c=composition(sp); let m=0; for(const k in c){ if(!(k in AM)) return null; m+=AM[k]*c[k]; } return m; }
 // Per-element contributions, used to show the molar-mass breakdown.
 function massParts(sp){ const c=composition(sp); return Object.entries(c).map(([el,n])=>({el,n,a:AM[el]})); }
+// Strip a leading stoichiometric coefficient and any trailing charge notation
+// from a species token, keeping the literal formula characters intact (so
+// partial/incomplete typing can still be prefix-matched against it).
+// "2MnO4^-" / "MnO4-" / "MnO4 ^-" all reduce to "MnO4"; "5C2O4^2-" / "C2O4 2-"
+// both reduce to "C2O4". Returns "" if nothing formula-like is left.
+function bareFormula(sp){
+  let s=(sp||"").trim();
+  if(!s) return "";
+  const coefM=s.match(/^(\d+(?:\/\d+)?)([A-Za-z(\[].*)$/);
+  if(coefM) s=coefM[2];
+  s=s.replace(/\^\d*[+\-]+$/,"");     // caret form: ^-, ^2-, ^3+
+  s=s.replace(/\s+\d+[+\-]+$/,"");    // spaced magnitude form: " 2-", " 3+"
+  s=s.replace(/[+\-]+$/,"");          // bare trailing sign(s): "MnO4-", "OH-"
+  return s.trim();
+}
 
 /* ---- Reaction parsing --------------------------------------------------- */
 // Spectators excluded from limiting-reactant logic (supplied in excess).
@@ -512,9 +527,11 @@ R.filter(r=>!r.skip).forEach(r=>{
   const elset=new Set();
   [...p.reactants, ...p.products].forEach(t=>{ const c=composition(t.sp); for(const k in c) elset.add(k); });
   const el=[...elset];
+  const bareTexts=new Set();
+  [...p.reactants, ...p.products].forEach(t=>{ const b=bareFormula(t.sp); if(b) bareTexts.add(b.toLowerCase()); });
   QUAL.push({
     eq:r.eq, cat:r.cat, el, cond:r.cond||"", equil:p.equil,
-    A:real[0], B:real[1], hadSpect,
+    A:real[0], B:real[1], hadSpect, bareTexts,
     search:(r.eq+" "+el.join(" ")+" "+(r.cond||"")+" "+CAT[r.cat].label).toLowerCase()
   });
 });
