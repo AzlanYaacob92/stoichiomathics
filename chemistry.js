@@ -93,6 +93,15 @@ function composition(formula){
 function molarMass(sp){ const c=composition(sp); let m=0; for(const k in c){ if(!(k in AM)) return null; m+=AM[k]*c[k]; } return m; }
 // Per-element contributions, used to show the molar-mass breakdown.
 function massParts(sp){ const c=composition(sp); return Object.entries(c).map(([el,n])=>({el,n,a:AM[el]})); }
+// Canonical signature for a species ignoring charge and any leading coefficient
+// (composition() already discards both) — used for exact species search-matching.
+// Returns null if the token contains no recognisable element (e.g. free text).
+function speciesSig(sp){
+  const c=composition(sp);
+  const keys=Object.keys(c);
+  if(!keys.length) return null;
+  return keys.sort().map(k=>k+c[k]).join('');
+}
 
 /* ---- Reaction parsing --------------------------------------------------- */
 // Spectators excluded from limiting-reactant logic (supplied in excess).
@@ -512,9 +521,11 @@ R.filter(r=>!r.skip).forEach(r=>{
   const elset=new Set();
   [...p.reactants, ...p.products].forEach(t=>{ const c=composition(t.sp); for(const k in c) elset.add(k); });
   const el=[...elset];
+  const sigs=new Set();
+  [...p.reactants, ...p.products].forEach(t=>{ const sig=speciesSig(t.sp); if(sig) sigs.add(sig); });
   QUAL.push({
     eq:r.eq, cat:r.cat, el, cond:r.cond||"", equil:p.equil,
-    A:real[0], B:real[1], hadSpect,
+    A:real[0], B:real[1], hadSpect, sigs,
     search:(r.eq+" "+el.join(" ")+" "+(r.cond||"")+" "+CAT[r.cat].label).toLowerCase()
   });
 });
