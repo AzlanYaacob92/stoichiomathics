@@ -93,14 +93,20 @@ function composition(formula){
 function molarMass(sp){ const c=composition(sp); let m=0; for(const k in c){ if(!(k in AM)) return null; m+=AM[k]*c[k]; } return m; }
 // Per-element contributions, used to show the molar-mass breakdown.
 function massParts(sp){ const c=composition(sp); return Object.entries(c).map(([el,n])=>({el,n,a:AM[el]})); }
-// Canonical signature for a species ignoring charge and any leading coefficient
-// (composition() already discards both) — used for exact species search-matching.
-// Returns null if the token contains no recognisable element (e.g. free text).
-function speciesSig(sp){
-  const c=composition(sp);
-  const keys=Object.keys(c);
-  if(!keys.length) return null;
-  return keys.sort().map(k=>k+c[k]).join('');
+// Strip a leading stoichiometric coefficient and any trailing charge notation
+// from a species token, keeping the literal formula characters intact (so
+// partial/incomplete typing can still be prefix-matched against it).
+// "2MnO4^-" / "MnO4-" / "MnO4 ^-" all reduce to "MnO4"; "5C2O4^2-" / "C2O4 2-"
+// both reduce to "C2O4". Returns "" if nothing formula-like is left.
+function bareFormula(sp){
+  let s=(sp||"").trim();
+  if(!s) return "";
+  const coefM=s.match(/^(\d+(?:\/\d+)?)([A-Za-z(\[].*)$/);
+  if(coefM) s=coefM[2];
+  s=s.replace(/\^\d*[+\-]+$/,"");     // caret form: ^-, ^2-, ^3+
+  s=s.replace(/\s+\d+[+\-]+$/,"");    // spaced magnitude form: " 2-", " 3+"
+  s=s.replace(/[+\-]+$/,"");          // bare trailing sign(s): "MnO4-", "OH-"
+  return s.trim();
 }
 
 /* ---- Reaction parsing --------------------------------------------------- */
@@ -521,11 +527,11 @@ R.filter(r=>!r.skip).forEach(r=>{
   const elset=new Set();
   [...p.reactants, ...p.products].forEach(t=>{ const c=composition(t.sp); for(const k in c) elset.add(k); });
   const el=[...elset];
-  const sigs=new Set();
-  [...p.reactants, ...p.products].forEach(t=>{ const sig=speciesSig(t.sp); if(sig) sigs.add(sig); });
+  const bareTexts=new Set();
+  [...p.reactants, ...p.products].forEach(t=>{ const b=bareFormula(t.sp); if(b) bareTexts.add(b.toLowerCase()); });
   QUAL.push({
     eq:r.eq, cat:r.cat, el, cond:r.cond||"", equil:p.equil,
-    A:real[0], B:real[1], hadSpect, sigs,
+    A:real[0], B:real[1], hadSpect, bareTexts,
     search:(r.eq+" "+el.join(" ")+" "+(r.cond||"")+" "+CAT[r.cat].label).toLowerCase()
   });
 });
@@ -546,4 +552,27 @@ function computeLimiting(q, nA, nB){
   else if(ratioA<ratioB){ limiting=A; excess=B; leftMol=nB-nBneed;   leftMass=leftMol*MB; }
   else                  { limiting=B; excess=A; leftMol=nA-nB*(a/b); leftMass=leftMol*MA; }
   return {A,B,a,b,MA,MB,nA,nB,nBneed,ratioA,ratioB,tie,enough,limiting,excess,leftMol,leftMass};
+}
+
+/* ---- Pivot reframing ------------------------------------------------------
+   The physics (which reactant is actually limiting) never depends on which
+   one a student chooses to test first — computeLimiting() above is already
+   symmetric. pivotView() just re-expresses the same result from whichever
+   side ("A" or "B") the student picked to "use up first": P is the one
+   assumed fully consumed, Q is the one being checked for enough supply.
+   pv.enough === true  means the assumption held: P really is limiting.
+   pv.enough === false means it didn't: Q actually runs out first, so Q is
+   limiting and P is left in excess instead. Either way res.limiting /
+   res.excess (from computeLimiting) remain the ground truth — pivotView
+   never overrides them, it just reframes the working around the choice. */
+function pivotView(res, pivot){
+  const useA = pivot !== 'B';
+  const P = useA ? res.A : res.B, Q = useA ? res.B : res.A;
+  const nP = useA ? res.nA : res.nB, nQ = useA ? res.nB : res.nA;
+  const pCoef = useA ? res.a : res.b, qCoef = useA ? res.b : res.a;
+  const MP = useA ? res.MA : res.MB, MQ = useA ? res.MB : res.MA;
+  const nQneed = nP*(qCoef/pCoef);
+  const tol = 1e-9*Math.max(nP/pCoef, nQ/qCoef, 1e-30);
+  const enough = res.tie ? true : (nQ >= nQneed - tol);
+  return {P,Q,nP,nQ,pCoef,qCoef,MP,MQ,nQneed,enough,tie:res.tie,pivot:useA?'A':'B'};
 }

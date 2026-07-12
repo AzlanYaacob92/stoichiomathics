@@ -140,6 +140,10 @@
         <div class="step-strategy-zone">
           <span class="strategy-eyebrow">Strategy</span>
           <p class="strategy-instruction" id="strategy-instruction"></p>
+          <div class="pivot-select">
+            <span class="pivot-label">Which one do you want to try using up first?</span>
+            <div class="seg seg--wide" id="pivot-seg" role="group" aria-label="Choose which reactant to use up first"></div>
+          </div>
           <p class="strategy-text" id="strategy-text"></p>
           <p class="strategy-footnote" id="strategy-footnote" hidden></p>
         </div>
@@ -199,6 +203,10 @@
         <span class="strategy-eyebrow">Conclusion</span>
         <p class="verdict-headline" id="verdict-headline"></p>
         <p class="verdict-body" id="verdict-body"></p>
+        <div class="whatif" id="whatif" hidden>
+          <button class="btn btn--ghost whatif-toggle" id="whatif-toggle" type="button"></button>
+          <div class="whatif-body" id="whatif-body" hidden></div>
+        </div>
         <div class="verdict-actions">
           <button class="btn btn--primary" id="verdict-again" type="button">Try different amounts</button>
           <button class="btn btn--ghost" id="verdict-restart" type="button">Start again</button>

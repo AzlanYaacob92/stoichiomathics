@@ -198,7 +198,7 @@
     mode: null,             // 'learn' | 'test' | 'verify'
     cat: "all", els: new Set(), matchMode: "all", query: "",
     sel: null,              // a QUAL index, or the string 'custom'
-    inA: freshInput(), inB: freshInput(),
+    inA: freshInput(), inB: freshInput(), pivot: "A",
     learn: null,            // { steps, idx, calcShown }
     prac: null,             // { steps, idx, revealed, guess }
     customCount: 1,         // number of products chosen in the custom builder (1–4)
@@ -240,7 +240,7 @@
 
   function resetAll() {
     state.mode = null; state.sel = null;
-    state.inA = freshInput(); state.inB = freshInput();
+    state.inA = freshInput(); state.inB = freshInput(); state.pivot = "A";
     state.learn = null; state.prac = null;
     state.customCount = 1; state.customFields = null; state.customQ = null;
     renderCatalog();
@@ -289,16 +289,26 @@
     Object.entries(CAT).filter(([k]) => presentCats.includes(k)).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join('');
 
   // Species tokens are separated the same way stored equations join them: " + ".
-  // Each token's coefficient/charge is ignored by speciesSig(), so "2MnO4-" and
-  // "MnO4^-" and "MnO4" all resolve to the same signature.
-  function queryMatches(q, rawQuery) {
+  // Each typed token is reduced to its bare formula (coefficient/charge
+  // stripped, via bareFormula()) and matched as a PREFIX against each
+  // reaction's species — so incomplete typing filters live as you go:
+  // "C2" matches "C2O4" the moment you've typed enough of it, without
+  // waiting for the full formula. Non-formula tokens (e.g. "titration")
+  // won't prefix-match any species, so the whole query then falls back to
+  // a free-text substring search over the reaction's index instead.
+  function speciesQueryMatches(q, rawQuery) {
     const tokens = rawQuery.split(/\s+\+\s+/).map(t => t.trim()).filter(Boolean);
-    const sigs = tokens.map(speciesSig);
-    if (sigs.length && sigs.every(s => s !== null)) {
-      return sigs.every(sig => q.sigs.has(sig));
-    }
-    // Not all tokens look like chemical formulas (e.g. "redox", "titration") —
-    // fall back to a free-text substring match against the reaction's index.
+    if (!tokens.length) return false;
+    return tokens.every(tok => {
+      const bare = bareFormula(tok).toLowerCase();
+      if (!bare) return false;
+      for (const bt of q.bareTexts) { if (bt.startsWith(bare)) return true; }
+      return false;
+    });
+  }
+
+  function queryMatches(q, rawQuery) {
+    if (speciesQueryMatches(q, rawQuery)) return true;
     return q.search.includes(rawQuery.toLowerCase());
   }
 
@@ -394,10 +404,12 @@
 
   /* Free-text species/formula search — an alternative to tapping the table.
      Numbers live-preview as subscripts as the user types (same renderer used
-     for the reaction cards). Species are matched exactly by composition,
-     ignoring stoichiometric coefficients and charges, so "MnO4-", "2MnO4^-"
-     and "MnO4" all find the same reactions. Non-formula text (e.g. a
-     reaction-type name) falls back to a substring search instead. */
+     for the reaction cards). Species are matched as a PREFIX of the bare
+     formula (coefficient and charge stripped), so it filters live while
+     incomplete: "MnO4 + C2" already surfaces reactions containing "C2O4"
+     before the rest is typed, and "MnO4-"/"2MnO4^-"/"MnO4" all find the
+     same reactions. Non-formula text (e.g. a reaction-type name) falls
+     back to a substring search instead. */
   const searchInput = document.getElementById('speciesSearch');
   const searchPreview = document.getElementById('searchPreview');
   searchInput.addEventListener('input', () => {
@@ -419,7 +431,7 @@
      the measurements card in — the table never clutters the working view. */
   function selectReaction(id) {
     state.sel = id;
-    state.inA = freshInput(); state.inB = freshInput();
+    state.inA = freshInput(); state.inB = freshInput(); state.pivot = "A";
     state.learn = null; state.prac = null;
     goTo('measure', 'forward', renderMeasure);
   }
@@ -554,7 +566,7 @@
   function selectCustomReaction(q) {
     state.sel = 'custom';
     state.customQ = q;
-    state.inA = freshInput(); state.inB = freshInput();
+    state.inA = freshInput(); state.inB = freshInput(); state.pivot = "A";
     state.learn = null; state.prac = null;
     goTo('measure', 'forward', renderMeasure);
   }
@@ -654,16 +666,33 @@
   function renderStrategy() {
     const q = currentQ();
     const A = q.A, B = q.B;
+    const { res } = computed();
     const instruction = document.getElementById('strategy-instruction');
     const text = document.getElementById('strategy-text');
     const foot = document.getElementById('strategy-footnote');
     const btn = document.getElementById('strategy-continue');
+    const seg = document.getElementById('pivot-seg');
 
     instruction.textContent = 'Compare moles, not grams.';
-    text.innerHTML = `Decide which of <b>${fmtFormula(A.sp)}</b> and <b>${fmtFormula(B.sp)}</b> runs out first. ` +
-      `Convert each amount to <b>moles</b>, then use the equation's <b>${A.coef} : ${B.coef}</b> ratio to ask: ` +
-      `is there enough ${fmtFormula(B.sp)} to use up all the ${fmtFormula(A.sp)}? ` +
-      `Whichever reactant falls short is the <b>limiting reactant</b> — it controls how much product forms.`;
+
+    // Let the student choose which reactant to test as "used up first".
+    // The chemistry doesn't care which side you pick — pivotView() below
+    // just reframes the same comparison around that choice, and either
+    // confirms it or reveals the other reactant is the real limiting one.
+    seg.innerHTML = [['A', A], ['B', B]].map(([key, x]) =>
+      `<button type="button" data-pivot="${key}" class="${state.pivot === key ? 'active' : ''}">${fmtFormula(x.sp)}</button>`
+    ).join('');
+    seg.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+      if (state.pivot === b.dataset.pivot) return;
+      state.pivot = b.dataset.pivot;
+      renderStrategy();
+    }));
+
+    const pv = pivotView(res, state.pivot);
+    text.innerHTML = `You've chosen to test <b>${fmtFormula(pv.P.sp)}</b> first. Convert each amount to <b>moles</b>, ` +
+      `then use the equation's <b>${A.coef} : ${B.coef}</b> ratio to ask: is there enough ${fmtFormula(pv.Q.sp)} to use up ` +
+      `all the ${fmtFormula(pv.P.sp)}? If yes, ${fmtFormula(pv.P.sp)} is confirmed as the <b>limiting reactant</b>. ` +
+      `If not, ${fmtFormula(pv.Q.sp)} actually runs out first instead — the working will show you which.`;
     if (q.hadSpect) {
       foot.textContent = 'H⁺ / OH⁻ is supplied in excess and is left out of the comparison.';
       foot.hidden = false;
@@ -742,45 +771,100 @@
     return `M<sub>r</sub>(${fmtFormula(sp)}) = ${formula} = ${subst} = ${mm1(M)} g mol⁻¹`;
   }
 
+  /* "needed vs available" working, from a pivot's P/Q perspective — states
+     the mole-ratio as a proportion first, rearranges to make n(Q) the
+     subject, then substitutes. Shared by Learn, Practice, and the verdict
+     card's what-if panel so the derivation reads the same everywhere. */
+  function neededMath(pv) {
+    const fP = fmtFormula(pv.P.sp), fQ = fmtFormula(pv.Q.sp);
+    const ratio = frac(String(pv.qCoef), String(pv.pCoef));
+    return `${frac(`n(${fQ})`, `n(${fP})`)} = ${ratio}<br>` +
+      `n(${fQ}) = n(${fP}) × ${ratio}<br>` +
+      `n(${fQ}) needed = ${sig(pv.nP)} × ${ratio} = ${sig(pv.nQneed)} mol<br>` +
+      `n(${fQ}) available = ${sig(pv.nQ)} mol`;
+  }
+
+  /* Combined mole-strategy sentence when converting both reactants in one
+     step — one sentence if both use the same method, otherwise both
+     individual sentences back to back. */
+  function moleStrategyCombined(inpP, spP, inpQ, spQ) {
+    const fP = fmtFormula(spP), fQ = fmtFormula(spQ);
+    if (inpP.method === inpQ.method) {
+      const how = inpP.method === 'mass' ? `given as a mass, so divide each by its molar mass: n = m ÷ M<sub>r</sub>`
+                : inpP.method === 'conc' ? `given as a solution, so multiply concentration by volume (in dm³): n = c × V`
+                : `a gas volume, so divide by the molar gas volume: n = V ÷ V<sub>m</sub>`;
+      return `Both amounts are ${how} — do this for ${fP} first, then ${fQ}.`;
+    }
+    return `${moleStrategy(inpP, spP)} ${moleStrategy(inpQ, spQ)}`;
+  }
+  function moleFootnoteCombined(inpP, inpQ) {
+    return [moleFootnote(inpP), moleFootnote(inpQ)].filter(Boolean).join(' ') || null;
+  }
+
   /* ---------------- LEARN: build the step list ---------------- */
   function buildLearnSteps() {
     const { q, res } = computed();
-    const A = q.A, B = q.B, a = A.coef, b = B.coef;
+    const pv = pivotView(res, state.pivot);
+    const inpP = pv.pivot === 'A' ? state.inA : state.inB;
+    const inpQ = pv.pivot === 'A' ? state.inB : state.inA;
+    const fP = fmtFormula(pv.P.sp), fQ = fmtFormula(pv.Q.sp);
     const steps = [];
 
-    // molar masses — only for reactants entered by mass
-    const massSides = [[A, state.inA], [B, state.inB]].filter(([x, inp]) => inp.method === 'mass');
-    massSides.forEach(([x]) => {
+    // molar masses — one combined step for whichever reactants are entered
+    // by mass (pivot reactant first); skipped entirely, or shown for just
+    // one reactant, if only one (or neither) uses the mass method.
+    const massSides = [[pv.P, inpP], [pv.Q, inpQ]].filter(([, inp]) => inp.method === 'mass');
+    if (massSides.length === 2) {
+      steps.push({
+        instruction: `Work out the molar masses of ${fP} and ${fQ}.`,
+        strategy: 'Add up the relative atomic masses of every atom in each formula — multiply by the subscript where an element appears more than once.',
+        math: `${mmMath(pv.P.sp)}<br>${mmMath(pv.Q.sp)}`
+      });
+    } else if (massSides.length === 1) {
+      const [x] = massSides[0];
       steps.push({
         instruction: `Work out the molar mass of ${fmtFormula(x.sp)}.`,
         strategy: 'Add up the relative atomic masses of every atom in the formula — multiply by the subscript where an element appears more than once.',
         math: mmMath(x.sp)
       });
-    });
+    }
 
-    // moles of each reactant
-    [[A, state.inA, res.nA], [B, state.inB, res.nB]].forEach(([x, inp, n]) => {
-      steps.push({
-        instruction: `Convert the amount of ${fmtFormula(x.sp)} to moles.`,
-        strategy: moleStrategy(inp, x.sp),
-        footnote: moleFootnote(inp),
-        math: moleMath(inp, x.sp, n)
-      });
+    // moles of both reactants — one combined step, pivot reactant first
+    steps.push({
+      instruction: `Convert the amounts of ${fP} and ${fQ} to moles.`,
+      strategy: moleStrategyCombined(inpP, pv.P.sp, inpQ, pv.Q.sp),
+      footnote: moleFootnoteCombined(inpP, inpQ),
+      math: `${moleMath(inpP, pv.P.sp, pv.nP)}<br>${moleMath(inpQ, pv.Q.sp, pv.nQ)}`
     });
 
     // mole ratio
     steps.push({
       instruction: 'Read off the mole ratio.',
-      strategy: `From the balanced equation, ${fmtFormula(A.sp)} and ${fmtFormula(B.sp)} react in the ratio ${a} : ${b} — every ${a} mol of ${fmtFormula(A.sp)} needs ${b} mol of ${fmtFormula(B.sp)}.`,
-      math: `${fmtFormula(A.sp)} : ${fmtFormula(B.sp)} = ${a} : ${b}`
+      strategy: `From the balanced equation, ${fP} and ${fQ} react in the ratio ${pv.pCoef} : ${pv.qCoef} — every ${pv.pCoef} mol of ${fP} needs ${pv.qCoef} mol of ${fQ}.`,
+      math: `${fP} : ${fQ} = ${pv.pCoef} : ${pv.qCoef}`
     });
 
-    // compare needed vs available
-    const cmpWord = res.tie ? 'exactly equal to' : (res.enough ? 'no more than' : 'more than');
+    // compare needed vs available, from the chosen pivot's perspective —
+    // write the ratio as a proportion first, rearrange to make n(Q) the
+    // subject, then substitute.
+    const cmpWord = pv.tie ? 'exactly equal to' : (pv.enough ? 'no more than' : 'more than');
     steps.push({
       instruction: 'Compare: how much is needed vs available.',
-      strategy: `Work out how much ${fmtFormula(B.sp)} would be needed to use up all ${sig(res.nA)} mol of ${fmtFormula(A.sp)}, then compare it with the ${sig(res.nB)} mol you actually have. Here, the amount needed is ${cmpWord} the amount available.`,
-      math: `n(${fmtFormula(B.sp)}) needed = n(${fmtFormula(A.sp)}) × ${frac(String(b), String(a))} = ${sig(res.nA)} × ${frac(String(b), String(a))} = ${sig(res.nBneed)} mol<br>n(${fmtFormula(B.sp)}) available = ${sig(res.nB)} mol`
+      strategy: `Start from the mole ratio ${fQ} : ${fP} = ${pv.qCoef} : ${pv.pCoef}, written as a proportion n(${fQ}) ⁄ n(${fP}) = ${pv.qCoef}⁄${pv.pCoef}. Rearrange to make n(${fQ}) the subject, then substitute the ${sig(pv.nP)} mol of ${fP} you have to find how much ${fQ} would be needed to use it all up. Compare that with the ${sig(pv.nQ)} mol of ${fQ} you actually have — the amount needed is ${cmpWord} the amount available.`,
+      math: neededMath(pv)
+    });
+
+    // interpret the comparison — the branch this pivot choice actually landed on
+    steps.push({
+      instruction: 'Interpret the comparison.',
+      strategy: pv.tie
+        ? `The needed and available amounts of ${fQ} match exactly — both reactants run out at the same time, so neither is in excess.`
+        : pv.enough
+          ? `There's ${sig(pv.nQ)} mol of ${fQ} available — enough to react with all ${sig(pv.nP)} mol of ${fP}. So ${fP} runs out first, exactly as you tested — it's the <b>limiting reactant</b>, and ${fQ} is left in <b>excess</b>.`
+          : `Only ${sig(pv.nQ)} mol of ${fQ} is available, but ${sig(pv.nQneed)} mol was needed to react with all the ${fP}. So ${fQ} actually runs out <b>first</b> instead — it's the <b>limiting reactant</b>, and ${fP} is left in <b>excess</b>.`,
+      math: pv.tie
+        ? `n(${fQ}) needed = n(${fQ}) available = ${sig(pv.nQ)} mol`
+        : `${sig(pv.nQ)} mol ${pv.enough ? '≥' : '<'} ${sig(pv.nQneed)} mol needed`
     });
 
     return steps;
@@ -829,35 +913,35 @@
   /* ---------------- PRACTISE: one card at a time, gated ---------------- */
   function buildPracSteps() {
     const { q, res } = computed();
-    const A = q.A, B = q.B, a = A.coef, b = B.coef;
-    const fA = fmtFormula(A.sp), fB = fmtFormula(B.sp);
+    const pv = pivotView(res, state.pivot);
+    const fP = fmtFormula(pv.P.sp), fQ = fmtFormula(pv.Q.sp);
 
     return [
       {
         instruction: 'Here are the moles — the rest is yours.',
-        strategy: 'Both amounts have been converted to moles for you. From here on, predict each result before you reveal it.',
+        strategy: `Both amounts have been converted to moles for you. You chose to test ${fP} first. From here on, predict each result before you reveal it.`,
         kind: 'given',
-        body: `<div class="ans-lines">${mathGrid(`n(${fA}) = ${sig(res.nA)} mol<br>n(${fB}) = ${sig(res.nB)} mol`)}</div>`
+        body: `<div class="ans-lines">${mathGrid(`n(${fP}) = ${sig(pv.nP)} mol<br>n(${fQ}) = ${sig(pv.nQ)} mol`)}</div>`
       },
       {
         instruction: 'Read off the mole ratio.',
-        strategy: `What is the ${fA} : ${fB} ratio in the balanced equation? Say it out loud, then reveal.`,
+        strategy: `What is the ${fP} : ${fQ} ratio in the balanced equation? Say it out loud, then reveal.`,
         kind: 'reveal',
         revealLabel: 'Ratio from the balanced equation — try it first',
-        body: `<div class="ans-lines">${mathGrid(`${fA} : ${fB} = ${a} : ${b}`)}</div>`
+        body: `<div class="ans-lines">${mathGrid(`${fP} : ${fQ} = ${pv.pCoef} : ${pv.qCoef}`)}</div>`
       },
       {
         instruction: 'Compare: needed vs available.',
-        strategy: `How much ${fB} would be needed to react with all ${sig(res.nA)} mol of ${fA}? Work it out on paper — n(${fA}) × ${b}⁄${a} — then reveal.`,
+        strategy: `Write the ratio n(${fQ}) ⁄ n(${fP}) = ${pv.qCoef}⁄${pv.pCoef}, rearrange to make n(${fQ}) the subject, then substitute the ${sig(pv.nP)} mol of ${fP} you have. Work it out on paper, then reveal.`,
         kind: 'reveal',
         revealLabel: 'Needed amount vs available amount',
-        body: `<div class="ans-lines">${mathGrid(`n(${fB}) needed = ${sig(res.nA)} × ${frac(String(b), String(a))} = ${sig(res.nBneed)} mol<br>n(${fB}) available = ${sig(res.nB)} mol`)}</div>`
+        body: `<div class="ans-lines">${mathGrid(neededMath(pv))}</div>`
       },
       {
         instruction: 'Which reactant is limiting?',
         strategy: res.tie
           ? 'Compare the needed amount with the available amount. Careful — this one may surprise you.'
-          : 'Make a prediction first — then the answer reveals itself.',
+          : `Make a prediction first — was ${fP} really the one that runs out, or does the comparison say otherwise? Then reveal.`,
         kind: 'guess'
       }
     ];
@@ -945,6 +1029,13 @@
     } else {
       feedback = `<div class="gverdict">Answer revealed — see the conclusion.</div>`;
     }
+    const pv = pivotView(res, state.pivot);
+    const branchNote = res.tie
+      ? `Both reactants run out together — exactly stoichiometric, so your test on ${fmtFormula(pv.P.sp)} couldn't have gone wrong either way.`
+      : pv.enough
+        ? `Your test on <b>${fmtFormula(pv.P.sp)}</b> held up: it really does run out first.`
+        : `Your test on <b>${fmtFormula(pv.P.sp)}</b> didn't hold up — there wasn't enough ${fmtFormula(pv.Q.sp)} to use it all up, so <b>${fmtFormula(pv.Q.sp)}</b> runs out first instead.`;
+    feedback += `<p class="branch-note">${branchNote}</p>`;
     pracBody.innerHTML = feedback;
     pracNext.hidden = false;
     pracNext.textContent = 'See the conclusion →';
@@ -966,21 +1057,33 @@
   /* ---------------- VERIFY: answers only ---------------- */
   function renderVerify() {
     const { q, res } = computed();
-    const A = q.A, B = q.B;
-    const fA = fmtFormula(A.sp), fB = fmtFormula(B.sp);
+    const pv = pivotView(res, state.pivot);
+    const inpP = pv.pivot === 'A' ? state.inA : state.inB;
+    const inpQ = pv.pivot === 'A' ? state.inB : state.inA;
+    const fP = fmtFormula(pv.P.sp), fQ = fmtFormula(pv.Q.sp);
     const rows = [];
 
-    const massSides = [[A, state.inA], [B, state.inB]].filter(([x, inp]) => inp.method === 'mass');
+    const massSides = [[pv.P, inpP], [pv.Q, inpQ]].filter(([x, inp]) => inp.method === 'mass');
     if (massSides.length) {
       rows.push(['Molar mass' + (massSides.length > 1 ? 'es' : ''),
         massSides.map(([x]) => `M<sub>r</sub>(${fmtFormula(x.sp)}) = <b>${mm1(molarMass(x.sp))}</b> g mol⁻¹`).join('<span class="dotsep">·</span>')]);
     }
-    rows.push(['Moles', `n(${fA}) = <b>${sig(res.nA)}</b> mol<span class="dotsep">·</span>n(${fB}) = <b>${sig(res.nB)}</b> mol`]);
-    rows.push(['Mole ratio', `${fA} : ${fB} = <b>${A.coef} : ${B.coef}</b>`]);
-    rows.push(['Needed vs available', `need n(${fB}) = <b>${sig(res.nBneed)}</b> mol; have <b>${sig(res.nB)}</b> mol → needed is <b>${res.tie ? 'equal to' : (res.enough ? '≤' : '>')}</b> available`]);
+    rows.push(['Moles', `n(${fP}) = <b>${sig(pv.nP)}</b> mol<span class="dotsep">·</span>n(${fQ}) = <b>${sig(pv.nQ)}</b> mol`]);
+    rows.push(['Mole ratio', `${fP} : ${fQ} = <b>${pv.pCoef} : ${pv.qCoef}</b>`]);
+    rows.push(['Needed vs available', `need n(${fQ}) = <b>${sig(pv.nQneed)}</b> mol; have <b>${sig(pv.nQ)}</b> mol → needed is <b>${pv.tie ? 'equal to' : (pv.enough ? '≤' : '>')}</b> available`]);
+    rows.push(['Assumption check', pv.tie
+      ? `You tested ${fP} — needed and available amounts of ${fQ} match exactly, so neither reactant is in excess.`
+      : pv.enough
+        ? `You tested <b>${fP}</b> to run out first — confirmed.`
+        : `You tested <b>${fP}</b> to run out first, but the comparison says <b>${fQ}</b> actually runs out first instead.`]);
     rows.push(['Conclusion', res.tie
       ? `Limiting: <b>neither — exactly stoichiometric</b>`
       : `Limiting: <b>${fmtFormula(res.limiting.sp)}</b><span class="dotsep">·</span>Excess: <b>${fmtFormula(res.excess.sp)}</b> (<b>${sig(res.leftMass)}</b> g / ${sig(res.leftMol)} mol left over)`]);
+
+    if (!res.tie) {
+      const rv = pivotView(res, pv.pivot === 'A' ? 'B' : 'A');
+      rows.push(['What if — use up the other reactant', `To fully react all <b>${sig(rv.nP)}</b> mol of ${fmtFormula(rv.P.sp)} instead, you'd need <b>${sig(rv.nQneed)}</b> mol of ${fmtFormula(rv.Q.sp)}, but only <b>${sig(rv.nQ)}</b> mol is available — short by <b>${sig(rv.nQneed - rv.nQ)}</b> mol.`]);
+    }
 
     document.getElementById('verify-body').innerHTML = rows.map(([label, html]) =>
       `<div class="vrow"><div class="vlabel">${label}</div><div class="vval">${html}</div></div>`).join('');
@@ -994,15 +1097,47 @@
     const { q, res } = computed();
     const head = document.getElementById('verdict-headline');
     const body = document.getElementById('verdict-body');
+    const whatif = document.getElementById('whatif');
+    const whatifToggle = document.getElementById('whatif-toggle');
+    const whatifBody = document.getElementById('whatif-body');
+
     if (res.tie) {
       head.innerHTML = 'Exactly stoichiometric';
       body.innerHTML = `Neither reactant is in excess — both <b>${fmtFormula(q.A.sp)}</b> and <b>${fmtFormula(q.B.sp)}</b> are used up completely.`;
-    } else {
-      head.innerHTML = `Limiting reactant: <span class="chip chip--lim">${fmtFormula(res.limiting.sp)}</span>`;
-      body.innerHTML = `<b>${fmtFormula(res.limiting.sp)}</b> runs out first, so it controls how much product forms. ` +
-        `<b>${fmtFormula(res.excess.sp)}</b> is in <span class="chip chip--exc">excess</span> — about ` +
-        `<b>${sig(res.leftMass)} g</b> (${sig(res.leftMol)} mol) of it is left over once the reaction stops.`;
+      whatif.hidden = true;
+      return;
     }
+
+    head.innerHTML = `Limiting reactant: <span class="chip chip--lim">${fmtFormula(res.limiting.sp)}</span>`;
+    body.innerHTML = `<b>${fmtFormula(res.limiting.sp)}</b> runs out first, so it controls how much product forms. ` +
+      `<b>${fmtFormula(res.excess.sp)}</b> is in <span class="chip chip--exc">excess</span> — about ` +
+      `<b>${sig(res.leftMass)} g</b> (${sig(res.leftMol)} mol) of it is left over once the reaction stops.`;
+
+    // "What if" — flip the pivot onto the excess reactant, so the student can
+    // see exactly how much more of the limiting reactant they'd need to fully
+    // react the excess instead. The shortfall is the same reason it's limiting.
+    whatif.hidden = false;
+    whatifBody.hidden = true;
+    whatifBody.innerHTML = '';
+    whatifToggle.textContent = `What if I wanted to use up all the ${fmtFormula(res.excess.sp)} instead?`;
+    whatifToggle.setAttribute('aria-expanded', 'false');
+    whatifToggle.onclick = () => {
+      const expanded = whatifToggle.getAttribute('aria-expanded') === 'true';
+      if (expanded) {
+        whatifBody.hidden = true;
+        whatifToggle.setAttribute('aria-expanded', 'false');
+        return;
+      }
+      const excessIsA = res.excess === res.A;
+      const pv = pivotView(res, excessIsA ? 'A' : 'B'); // pivot on the excess reactant
+      const shortfall = pv.nQneed - pv.nQ;
+      const shortMass = shortfall * pv.MQ;
+      whatifBody.innerHTML =
+        `<div class="ans-lines">${mathGrid(neededMath(pv))}</div>` +
+        `<p>You'd need <b>${sig(shortfall)} mol</b> (about <b>${sig(shortMass)} g</b>) more ${fmtFormula(pv.Q.sp)} than you have — that shortfall is exactly why it's the limiting reactant.</p>`;
+      whatifBody.hidden = false;
+      whatifToggle.setAttribute('aria-expanded', 'true');
+    };
   }
 
   document.getElementById('verdict-again').addEventListener('click', () => goTo('measure', 'back'));

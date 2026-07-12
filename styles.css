@@ -723,6 +723,8 @@ main { max-width: 900px; margin: 0 auto; padding: 8px 24px 0; }
 .gverdict { font-size: .95rem; font-weight: 700; font-family: var(--display); }
 .gverdict.gv-ok { color: var(--lim); }
 .gverdict.gv-no { color: var(--error-text); }
+.branch-note { font-family: var(--display); font-size: .92rem; color: var(--muted); margin: 10px 0 0; line-height: 1.6; }
+.branch-note b { color: var(--ink); }
 
 /* ---------- verify worksheet ---------- */
 .worksheet {
@@ -742,6 +744,14 @@ main { max-width: 900px; margin: 0 auto; padding: 8px 24px 0; }
 .vval sub { font-size: .7em; } .vval sup { font-size: .7em; }
 .dotsep { color: var(--faint); padding: 0 .6em; }
 .worksheet-actions { background: var(--card); padding: 8px 28px 24px; }
+
+/* ---------- pivot selector (strategy card) ---------- */
+.pivot-select { margin: 16px 0 4px; }
+.pivot-label {
+  display: block; margin-bottom: 8px;
+  font-family: var(--display); font-size: 1rem; font-weight: 700;
+  color: #fff;
+}
 
 /* ---------- verdict card ---------- */
 .verdict-card {
@@ -774,3 +784,14 @@ main { max-width: 900px; margin: 0 auto; padding: 8px 24px 0; }
 [data-theme="dark"] .verdict-actions .btn--primary:hover { background: #7af2e4; }
 .verdict-actions .btn--ghost { color: var(--teal-50); border-color: rgba(238, 250, 248, .3); }
 .verdict-actions .btn--ghost:hover { background: rgba(238, 250, 248, .12); }
+
+.whatif { margin-top: 20px; padding-top: 18px; border-top: 1px dashed rgba(238, 250, 248, .25); }
+.whatif-toggle { width: 100%; text-align: left; }
+.whatif-body {
+  margin-top: 14px; padding: 14px 16px; border-radius: 12px;
+  background: rgba(238, 250, 248, .08); border: 1px solid rgba(238, 250, 248, .2);
+  font-family: var(--display); font-size: .95rem; line-height: 1.7; animation: fade .5s var(--ease-buttery);
+}
+.whatif-body b { color: #fff; }
+.whatif-body .ans-lines { margin-top: 8px; color: var(--teal-50); font-size: .92rem; }
+[data-theme="dark"] .whatif-body { background: rgba(9, 33, 30, .35); border-color: #1c4a44; }
