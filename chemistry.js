@@ -583,7 +583,7 @@ function pivotView(res, pivot){
    stoichiometric coefficient exactly matches that coefficient, then read the
    other reactant's scaled amount straight off against ITS coefficient — no
    assumption to test, just a direct side-by-side ratio comparison. Always
-   normalizes to the smaller-coefficient side, so which one is S vs O is
+   normalises to the smaller-coefficient side, so which one is S vs O is
    fixed by the equation, not by student choice. Mathematically it reaches
    the same res.limiting/res.excess as pivotView — just a different lens. */
 function ratioCompareView(res){

@@ -201,6 +201,7 @@
     inA: freshInput(), inB: freshInput(), pivot: "A", method: null,
     learn: null,            // { steps, idx, calcShown }
     prac: null,             // { steps, idx, revealed, guess }
+    ratio: null,            // { rows, idx, rowShown } — direct-method growing ratio table (Learn only)
     customCount: 1,         // number of products chosen in the custom builder (1–4)
     customFields: null,     // working {coef, name} rows while the builder is open — session-only, never saved
     customQ: null           // the built custom reaction, same shape as a QUAL entry
@@ -222,6 +223,7 @@
     measure: document.getElementById('card-measure'),
     strategy:document.getElementById('card-strategy'),
     learn:   document.getElementById('card-learn'),
+    ratioTable: document.getElementById('card-ratio-table'),
     prac:    document.getElementById('card-prac'),
     verify:  document.getElementById('card-verify'),
     verdict: document.getElementById('card-verdict')
@@ -242,7 +244,7 @@
   function resetAll() {
     state.mode = null; state.sel = null;
     state.inA = freshInput(); state.inB = freshInput(); state.pivot = "A"; state.method = null;
-    state.learn = null; state.prac = null;
+    state.learn = null; state.prac = null; state.ratio = null;
     state.customCount = 1; state.customFields = null; state.customQ = null;
     renderCatalog();
   }
@@ -433,7 +435,7 @@
   function selectReaction(id) {
     state.sel = id;
     state.inA = freshInput(); state.inB = freshInput(); state.pivot = "A"; state.method = null;
-    state.learn = null; state.prac = null;
+    state.learn = null; state.prac = null; state.ratio = null;
     goTo('method', 'forward', renderMethodSelect);
   }
 
@@ -568,7 +570,7 @@
     state.sel = 'custom';
     state.customQ = q;
     state.inA = freshInput(); state.inB = freshInput(); state.pivot = "A"; state.method = null;
-    state.learn = null; state.prac = null;
+    state.learn = null; state.prac = null; state.ratio = null;
     goTo('method', 'forward', renderMethodSelect);
   }
 
@@ -591,7 +593,7 @@
   const VOL_LABEL = { cm3: 'cm³ (mL)', dm3: 'dm³ (L)' };
 
   function methodSelect(side, inp) {
-    const opts = [['mass', 'Mass (g)'], ['conc', 'Concentration × volume'], ['gas', 'Gas volume']];
+    const opts = [['mass', 'Mass (g)'], ['conc', 'Molarity × volume'], ['gas', 'Gas volume']];
     return `<select class="msel select" data-side="${side}" data-role="method" aria-label="measurement method">` +
       opts.map(([v, l]) => `<option value="${v}" ${inp.method === v ? 'selected' : ''}>${l}</option>`).join('') + `</select>`;
   }
@@ -607,8 +609,8 @@
         <div class="massrow"><input class="num-input" type="number" min="0" step="any" inputmode="decimal" placeholder="mass" value="${inp.mass}" data-side="${side}" data-role="mass"><span class="unit">g</span></div>`;
     }
     if (inp.method === 'conc') {
-      return `<div class="hint">moles = concentration × volume</div>
-        <div class="massrow"><input class="num-input" type="number" min="0" step="any" inputmode="decimal" placeholder="concentration" value="${inp.conc}" data-side="${side}" data-role="conc"><span class="unit">mol dm⁻³</span></div>
+      return `<div class="hint">moles = molarity × volume</div>
+        <div class="massrow"><input class="num-input" type="number" min="0" step="any" inputmode="decimal" placeholder="molarity" value="${inp.conc}" data-side="${side}" data-role="conc"><span class="unit">mol dm⁻³</span></div>
         <div class="massrow"><input class="num-input" type="number" min="0" step="any" inputmode="decimal" placeholder="volume" value="${inp.cvol}" data-side="${side}" data-role="cvol">
           ${volUnitSelect(side, 'cvolUnit', inp.cvolUnit, 'cm3')}</div>`;
     }
@@ -670,7 +672,7 @@
     const nA = molesOf(state.inA, q.A.sp), nB = molesOf(state.inB, q.B.sp);
     const err = document.getElementById('measure-error');
     if (!(isFinite(nA) && nA > 0 && isFinite(nB) && nB > 0)) {
-      err.textContent = 'Enter a positive amount for both reactants — choose Mass, Concentration × volume, or Gas volume for each.';
+      err.textContent = 'Enter a positive amount for both reactants — choose Mass, Molarity × volume, or Gas volume for each.';
       err.hidden = false;
       return;
     }
@@ -729,8 +731,12 @@
 
   function beginWorking() {
     if (state.mode === 'learn') {
-      state.learn = { steps: buildLearnSteps(), idx: 0, calcShown: false };
-      goTo('learn', 'forward', renderLearnStep);
+      if (state.method === 'direct') {
+        goTo('ratioTable', 'forward', setupRatioTable);
+      } else {
+        state.learn = { steps: buildLearnSteps(), idx: 0, calcShown: false };
+        goTo('learn', 'forward', renderLearnStep);
+      }
     } else if (state.mode === 'test') {
       state.prac = { steps: buildPracSteps(), idx: 0, revealed: false, guess: null };
       goTo('prac', 'forward', renderPracStep);
@@ -760,7 +766,7 @@
       const c = parseFloat(inp.conc); const Vr = parseFloat(inp.cvol);
       const V = inp.cvolUnit === 'cm3' ? Vr / 1000 : Vr;
       const conv = inp.cvolUnit === 'cm3' ? `V = ${sig(Vr)} cm³ = ${sig(V)} dm³<br>` : '';
-      return `${conv}n(${f}) = c × V = ${sig(c)} × ${sig(V)} = ${sig(n)} mol`;
+      return `${conv}n(${f}) = M × V = ${sig(c)} × ${sig(V)} = ${sig(n)} mol`;
     }
     const Vr = parseFloat(inp.gvol);
     const V = inp.gvolUnit === 'cm3' ? Vr / 1000 : Vr;
@@ -772,7 +778,7 @@
   function moleStrategy(inp, sp) {
     const f = fmtFormula(sp);
     if (inp.method === 'mass') return `The amount of ${f} is given as a mass, so divide by its molar mass: n = m ÷ M<sub>r</sub>.`;
-    if (inp.method === 'conc') return `The amount of ${f} is given as a solution, so multiply concentration by volume (in dm³): n = c × V.`;
+    if (inp.method === 'conc') return `The amount of ${f} is given as a solution, so multiply molarity by volume (in dm³): n = M × V.`;
     return `The amount of ${f} is a gas volume, so divide by the molar gas volume: n = V ÷ V<sub>m</sub>.`;
   }
   function moleFootnote(inp) {
@@ -812,7 +818,7 @@
     const fP = fmtFormula(spP), fQ = fmtFormula(spQ);
     if (inpP.method === inpQ.method) {
       const how = inpP.method === 'mass' ? `given as a mass, so divide each by its molar mass: n = m ÷ M<sub>r</sub>`
-                : inpP.method === 'conc' ? `given as a solution, so multiply concentration by volume (in dm³): n = c × V`
+                : inpP.method === 'conc' ? `given as a solution, so multiply molarity by volume (in dm³): n = M × V`
                 : `a gas volume, so divide by the molar gas volume: n = V ÷ V<sub>m</sub>`;
       return `Both amounts are ${how} — do this for ${fP} first, then ${fQ}.`;
     }
@@ -837,7 +843,7 @@
 
   /* ---------------- LEARN: build the step list ---------------- */
   function buildLearnSteps() {
-    return state.method === 'direct' ? buildLearnStepsDirect() : buildLearnStepsGiven();
+    return buildLearnStepsGiven();
   }
 
   function buildLearnStepsGiven() {
@@ -908,71 +914,112 @@
     return steps;
   }
 
-  function buildLearnStepsDirect() {
+  function buildRatioTableSteps() {
     const { q, res } = computed();
     const A = q.A, B = q.B;
     const fA = fmtFormula(A.sp), fB = fmtFormula(B.sp);
-    const steps = [];
-
-    // molar masses — one combined step for whichever reactants are entered
-    // by mass, natural equation order (no pivot in this method)
-    const massSides = [[A, state.inA], [B, state.inB]].filter(([, inp]) => inp.method === 'mass');
-    if (massSides.length === 2) {
-      steps.push({
-        instruction: `Work out the molar masses of ${fA} and ${fB}.`,
-        strategy: 'Add up the relative atomic masses of every atom in each formula — multiply by the subscript where an element appears more than once.',
-        math: `${mmMath(A.sp)}<br>${mmMath(B.sp)}`
-      });
-    } else if (massSides.length === 1) {
-      const [x] = massSides[0];
-      steps.push({
-        instruction: `Work out the molar mass of ${fmtFormula(x.sp)}.`,
-        strategy: 'Add up the relative atomic masses of every atom in the formula — multiply by the subscript where an element appears more than once.',
-        math: mmMath(x.sp)
-      });
-    }
-
-    // moles of both reactants — one combined step
-    steps.push({
-      instruction: `Convert the amounts of ${fA} and ${fB} to moles.`,
-      strategy: moleStrategyCombined(state.inA, A.sp, state.inB, B.sp),
-      footnote: moleFootnoteCombined(state.inA, state.inB),
-      math: `${moleMath(state.inA, A.sp, res.nA)}<br>${moleMath(state.inB, B.sp, res.nB)}`
-    });
-
-    // stoichiometric mole ratio
-    steps.push({
-      instruction: 'Read off the stoichiometric mole ratio.',
-      strategy: `From the balanced equation, ${fA} and ${fB} react in the ratio ${A.coef} : ${B.coef} — this is the ratio the actual moles need to match.`,
-      math: `${fA} : ${fB} = ${A.coef} : ${B.coef}`
-    });
-
-    // normalize the actual ratio to the smaller-coefficient side and read
-    // the comparison straight off — no assumption to test, just a direct
-    // side-by-side scaled comparison.
     const rv = ratioCompareView(res);
     const fS = fmtFormula(rv.S.sp), fO = fmtFormula(rv.O.sp);
-    steps.push({
-      instruction: 'Normalize the actual mole ratio to compare it directly.',
-      strategy: `Scale the actual moles so ${fS} — the reactant with the smaller coefficient — matches its own coefficient, ${sig(rv.sCoef)}, exactly. Multiply both actual amounts by that same scale factor, then read off how much ${fO} that leaves you with, and compare it directly against ${fO}'s own coefficient, ${sig(rv.oCoef)}.`,
-      math: ratioTableMath(res, rv)
-    });
+    const SisA = rv.S === A;
 
-    // interpret the comparison
-    steps.push({
-      instruction: 'Interpret the comparison.',
-      strategy: rv.tie
-        ? `Scaled to match, both sides land exactly on their coefficients — the reactants are in exactly the stoichiometric ratio, so neither is in excess.`
-        : (rv.oScaled > rv.oCoef
-          ? `Scaled to match ${fS}, ${fO} comes out to ${sig(rv.oScaled)} — more than the ${sig(rv.oCoef)} the equation calls for. That extra means ${fO} is in <b>excess</b>, and ${fS} is the <b>limiting reactant</b>.`
-          : `Scaled to match ${fS}, ${fO} only reaches ${sig(rv.oScaled)} — short of the ${sig(rv.oCoef)} the equation calls for. That shortfall means ${fO} is the <b>limiting reactant</b>, and ${fS} is left in <b>excess</b>.`),
-      math: rv.tie
-        ? `${sig(rv.oScaled)} = ${sig(rv.oCoef)} required`
-        : `${sig(rv.oScaled)} ${rv.oScaled > rv.oCoef ? '>' : '<'} ${sig(rv.oCoef)} required`
-    });
+    const molCellA = mathGrid(moleMath(state.inA, A.sp, res.nA));
+    const molCellB = mathGrid(moleMath(state.inB, B.sp, res.nB));
 
-    return steps;
+    const sCell = mathGrid(`n(${fS}) × ${sig(rv.k)} = ${sig(rv.sCoef)}`);
+    const oCell = mathGrid(`n(${fO}) × ${sig(rv.k)} = ${sig(rv.nO)} × ${sig(rv.k)} = ${sig(rv.oScaled)}`);
+
+    const cmpS = mathGrid(`stoichiometric = ${sig(rv.sCoef)}<br>scaled actual = ${sig(rv.sCoef)}`);
+    const cmpO = mathGrid(`stoichiometric = ${sig(rv.oCoef)}<br>scaled actual = ${sig(rv.oScaled)}`);
+
+    return [
+      {
+        rowLabel: 'Stoichiometric coefficient',
+        cellA: A.coef, cellB: B.coef,
+        instruction: `Read off each reactant's coefficient.`,
+        strategy: `From the balanced equation, ${fA} has coefficient ${A.coef} and ${fB} has coefficient ${B.coef} — this is the ratio the actual moles will be compared against.`
+      },
+      {
+        rowLabel: 'Actual mol',
+        cellA: molCellA, cellB: molCellB,
+        instruction: `Work out the actual moles of each reactant.`,
+        strategy: moleStrategyCombined(state.inA, A.sp, state.inB, B.sp),
+        footnote: moleFootnoteCombined(state.inA, state.inB)
+      },
+      {
+        rowLabel: 'Normalised ratio',
+        cellA: SisA ? sCell : oCell, cellB: SisA ? oCell : sCell,
+        instruction: `Normalise the actual ratio to the equation's ratio.`,
+        strategy: `Scale both actual amounts by the same factor so ${fS} — the reactant with the smaller coefficient — matches its own coefficient (${sig(rv.sCoef)}) exactly. That scale factor is ${sig(rv.k)}.`
+      },
+      {
+        rowLabel: 'Comparison',
+        cellA: SisA ? cmpS : cmpO, cellB: SisA ? cmpO : cmpS,
+        instruction: `Compare the normalised ratio with the stoichiometric ratio.`,
+        strategy: rv.tie
+          ? `Scaled to match, both sides land exactly on their coefficients — the reactants are in exactly the stoichiometric ratio, so neither is in excess.`
+          : (rv.oScaled > rv.oCoef
+            ? `Scaled to match ${fS}, ${fO} comes out to ${sig(rv.oScaled)} — more than the ${sig(rv.oCoef)} the equation calls for. That extra means ${fO} is in <b>excess</b>, and ${fS} is the <b>limiting reactant</b>.`
+            : `Scaled to match ${fS}, ${fO} only reaches ${sig(rv.oScaled)} — short of the ${sig(rv.oCoef)} the equation calls for. That shortfall means ${fO} is the <b>limiting reactant</b>, and ${fS} is left in <b>excess</b>.`),
+        highlight: rv.tie ? null : (rv.oScaled > rv.oCoef ? (SisA ? 'a' : 'b') : (SisA ? 'b' : 'a'))
+      }
+    ];
   }
+
+  /* Growing ratio table (Learn + Direct method only): the card itself never
+     changes — the equation and table are set up once, then each click
+     either reveals the current row (added with a fade-in) or, once
+     revealed, advances to the next row's explanation. Mirrors the
+     show-then-advance rhythm of the ordinary Learn steps. */
+  function setupRatioTable() {
+    const q = currentQ();
+    document.getElementById('ratioEq').innerHTML = fmtEq(q.eq);
+    document.getElementById('ratio-thead').innerHTML =
+      `<th></th><th>${fmtFormula(q.A.sp)}</th><th>${fmtFormula(q.B.sp)}</th>`;
+    document.getElementById('ratio-tbody').innerHTML = '';
+    state.ratio = { rows: buildRatioTableSteps(), idx: 0, rowShown: false };
+    renderRatioTableStep();
+  }
+
+  function renderRatioTableStep() {
+    const { rows, idx } = state.ratio;
+    const row = rows[idx];
+    document.getElementById('ratio-eyebrow').textContent = `Step ${idx + 1} of ${rows.length}`;
+    document.getElementById('ratio-instruction').innerHTML = row.instruction;
+    document.getElementById('ratio-strategy').innerHTML = row.strategy;
+    const foot = document.getElementById('ratio-footnote');
+    if (row.footnote) { foot.innerHTML = row.footnote; foot.hidden = false; } else { foot.hidden = true; }
+    document.getElementById('ratio-next').textContent = 'Reveal this row →';
+  }
+
+  function appendRatioRow(row) {
+    const tbody = document.getElementById('ratio-tbody');
+    const tr = document.createElement('tr');
+    tr.className = 'ratio-row-in';
+    const clsA = row.highlight === 'a' ? ' class="ratio-limiting"' : '';
+    const clsB = row.highlight === 'b' ? ' class="ratio-limiting"' : '';
+    tr.innerHTML = `<th>${row.rowLabel}</th><td${clsA}>${row.cellA}</td><td${clsB}>${row.cellB}</td>`;
+    tbody.appendChild(tr);
+  }
+
+  document.getElementById('ratio-next').addEventListener('click', () => {
+    if (!state.ratio) return;
+    const { rows, idx, rowShown } = state.ratio;
+    if (!rowShown) {
+      appendRatioRow(rows[idx]);
+      state.ratio.rowShown = true;
+      const isLast = idx === rows.length - 1;
+      document.getElementById('ratio-next').textContent = isLast ? 'Reveal the conclusion →' : 'Next step →';
+      return;
+    }
+    if (idx + 1 < rows.length) {
+      state.ratio.idx = idx + 1;
+      state.ratio.rowShown = false;
+      renderRatioTableStep();
+    } else {
+      goTo('verdict', 'forward', renderVerdict);
+    }
+  });
+
 
   const learnEyebrow = document.getElementById('learn-eyebrow');
   const learnInstruction = document.getElementById('learn-instruction');
@@ -1077,7 +1124,7 @@
         body: `<div class="ans-lines">${mathGrid(`${fA} : ${fB} = ${A.coef} : ${B.coef}`)}</div>`
       },
       {
-        instruction: 'Normalize the actual ratio to compare directly.',
+        instruction: 'Normalise the actual ratio to compare directly.',
         strategy: `Scale the actual moles so ${fS} matches its own coefficient (${sig(rv.sCoef)}) exactly, then see what that makes ${fO}. Work it out on paper, then reveal.`,
         kind: 'reveal',
         revealLabel: `Scaled ratio vs the equation's ratio`,
