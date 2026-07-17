@@ -645,6 +645,36 @@ main { max-width: 900px; margin: 0 auto; padding: 8px 24px 0; }
 .ratio-limiting { background: rgba(245, 185, 66, .16); border-radius: 8px; box-shadow: inset 0 0 0 1.5px var(--gold); }
 [data-theme="dark"] .ratio-limiting { background: rgba(245, 185, 66, .12); }
 
+.ratio-info-inline {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: rgba(238, 250, 248, .18); color: #fff; font-size: .72em;
+  vertical-align: -3px;
+}
+.ratio-info-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; margin-left: 4px; padding: 0;
+  border: 1px solid var(--teal-100); border-radius: 50%;
+  background: var(--card); color: var(--teal-700);
+  font-size: .78rem; line-height: 1; cursor: pointer;
+  transition: background .2s var(--ease-buttery), color .2s var(--ease-buttery), border-color .2s var(--ease-buttery);
+}
+.ratio-info-btn:hover { background: var(--teal-100); }
+.ratio-info-btn.active { background: var(--teal-600); border-color: var(--teal-600); color: #fff; }
+.ratio-callout-row td { border-bottom: 1px solid var(--line); padding: 0 16px 14px; white-space: normal; }
+.ratio-callout-row[hidden] { display: none; }
+.ratio-callout {
+  font-family: var(--display); font-size: .92rem; line-height: 1.6; color: var(--ink);
+  background: var(--teal-50, #eefaf8); border-left: 3px solid var(--teal-600);
+  border-radius: 8px; padding: 12px 14px; margin-top: -2px;
+  animation: fade .35s var(--ease-buttery);
+}
+[data-theme="dark"] .ratio-callout { background: rgba(45, 212, 191, .08); }
+.ratio-callout-instruction { margin: 0 0 4px; font-weight: 700; }
+.ratio-callout-strategy { margin: 0; opacity: .92; }
+.ratio-callout-footnote { margin: 8px 0 0; font-size: .82rem; color: var(--muted); padding-top: 8px; border-top: 1px solid var(--line); }
+.ratio-callout-footnote::before { content: "Note — "; font-weight: 700; }
+
 /* ---------- stacked fractions + equation grid ---------- */
 .frac {
   display: inline-flex;

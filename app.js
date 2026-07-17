@@ -966,55 +966,67 @@
   }
 
   /* Growing ratio table (Learn + Direct method only): the card itself never
-     changes — the equation and table are set up once, then each click
-     either reveals the current row (added with a fade-in) or, once
-     revealed, advances to the next row's explanation. Mirrors the
-     show-then-advance rhythm of the ordinary Learn steps. */
+     changes — the equation and table are set up once. Each "Next step"
+     click adds one row straight away, working included, so there's no
+     separate reveal phase. The explanation for that row (why/how) sits in
+     a small callout the student can toggle open or closed independently
+     per row, rather than dominating the card up front. */
   function setupRatioTable() {
     const q = currentQ();
     document.getElementById('ratioEq').innerHTML = fmtEq(q.eq);
     document.getElementById('ratio-thead').innerHTML =
       `<th></th><th>${fmtFormula(q.A.sp)}</th><th>${fmtFormula(q.B.sp)}</th>`;
     document.getElementById('ratio-tbody').innerHTML = '';
-    state.ratio = { rows: buildRatioTableSteps(), idx: 0, rowShown: false };
-    renderRatioTableStep();
+    state.ratio = { rows: buildRatioTableSteps(), idx: 0 };
+    document.getElementById('ratio-eyebrow').textContent = `Step 1 of ${state.ratio.rows.length}`;
+    document.getElementById('ratio-next').textContent = 'Next step →';
   }
 
-  function renderRatioTableStep() {
-    const { rows, idx } = state.ratio;
-    const row = rows[idx];
-    document.getElementById('ratio-eyebrow').textContent = `Step ${idx + 1} of ${rows.length}`;
-    document.getElementById('ratio-instruction').innerHTML = row.instruction;
-    document.getElementById('ratio-strategy').innerHTML = row.strategy;
-    const foot = document.getElementById('ratio-footnote');
-    if (row.footnote) { foot.innerHTML = row.footnote; foot.hidden = false; } else { foot.hidden = true; }
-    document.getElementById('ratio-next').textContent = 'Reveal this row →';
-  }
-
-  function appendRatioRow(row) {
+  function appendRatioRow(row, i) {
     const tbody = document.getElementById('ratio-tbody');
-    const tr = document.createElement('tr');
-    tr.className = 'ratio-row-in';
+
+    const dataTr = document.createElement('tr');
+    dataTr.className = 'ratio-row-in';
     const clsA = row.highlight === 'a' ? ' class="ratio-limiting"' : '';
     const clsB = row.highlight === 'b' ? ' class="ratio-limiting"' : '';
-    tr.innerHTML = `<th>${row.rowLabel}</th><td${clsA}>${row.cellA}</td><td${clsB}>${row.cellB}</td>`;
-    tbody.appendChild(tr);
+    dataTr.innerHTML =
+      `<th>${row.rowLabel} <button class="ratio-info-btn" type="button" data-row="${i}" aria-expanded="false" aria-label="Show explanation for ${row.rowLabel}">ⓘ</button></th>` +
+      `<td${clsA}>${row.cellA}</td><td${clsB}>${row.cellB}</td>`;
+    tbody.appendChild(dataTr);
+
+    const calloutTr = document.createElement('tr');
+    calloutTr.className = 'ratio-callout-row';
+    calloutTr.dataset.row = i;
+    calloutTr.hidden = true;
+    calloutTr.innerHTML = `<td colspan="3"><div class="ratio-callout">
+        <p class="ratio-callout-instruction">${row.instruction}</p>
+        <p class="ratio-callout-strategy">${row.strategy}</p>
+        ${row.footnote ? `<p class="ratio-callout-footnote">${row.footnote}</p>` : ''}
+      </div></td>`;
+    tbody.appendChild(calloutTr);
+
+    dataTr.querySelector('.ratio-info-btn').addEventListener('click', () => {
+      const expanded = calloutTr.hidden === false;
+      calloutTr.hidden = expanded;
+      const btn = dataTr.querySelector('.ratio-info-btn');
+      btn.setAttribute('aria-expanded', String(!expanded));
+      btn.classList.toggle('active', !expanded);
+    });
   }
 
   document.getElementById('ratio-next').addEventListener('click', () => {
     if (!state.ratio) return;
-    const { rows, idx, rowShown } = state.ratio;
-    if (!rowShown) {
-      appendRatioRow(rows[idx]);
-      state.ratio.rowShown = true;
-      const isLast = idx === rows.length - 1;
-      document.getElementById('ratio-next').textContent = isLast ? 'Reveal the conclusion →' : 'Next step →';
-      return;
-    }
-    if (idx + 1 < rows.length) {
+    const { rows, idx } = state.ratio;
+    const btn = document.getElementById('ratio-next');
+    if (idx < rows.length) {
+      appendRatioRow(rows[idx], idx);
       state.ratio.idx = idx + 1;
-      state.ratio.rowShown = false;
-      renderRatioTableStep();
+      if (state.ratio.idx < rows.length) {
+        document.getElementById('ratio-eyebrow').textContent = `Step ${state.ratio.idx + 1} of ${rows.length}`;
+        btn.textContent = state.ratio.idx === rows.length - 1 ? 'Add the last row →' : 'Next step →';
+      } else {
+        btn.textContent = 'Reveal the conclusion →';
+      }
     } else {
       goTo('verdict', 'forward', renderVerdict);
     }
