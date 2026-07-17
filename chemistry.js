@@ -576,3 +576,27 @@ function pivotView(res, pivot){
   const enough = res.tie ? true : (nQ >= nQneed - tol);
   return {P,Q,nP,nQ,pCoef,qCoef,MP,MQ,nQneed,enough,tie:res.tie,pivot:useA?'A':'B'};
 }
+
+/* ---- Direct mol comparison ------------------------------------------------
+   An alternative to pivotView's "assume one runs out first, check the other"
+   framing: instead, scale the actual moles so the reactant with the SMALLER
+   stoichiometric coefficient exactly matches that coefficient, then read the
+   other reactant's scaled amount straight off against ITS coefficient — no
+   assumption to test, just a direct side-by-side ratio comparison. Always
+   normalizes to the smaller-coefficient side, so which one is S vs O is
+   fixed by the equation, not by student choice. Mathematically it reaches
+   the same res.limiting/res.excess as pivotView — just a different lens. */
+function ratioCompareView(res){
+  const aSmaller = res.a <= res.b;
+  const S = aSmaller ? res.A : res.B, O = aSmaller ? res.B : res.A;
+  const nS = aSmaller ? res.nA : res.nB, nO = aSmaller ? res.nB : res.nA;
+  const sCoef = aSmaller ? res.a : res.b, oCoef = aSmaller ? res.b : res.a;
+  const MS = aSmaller ? res.MA : res.MB, MO = aSmaller ? res.MB : res.MA;
+  const k = sCoef/nS;              // scale factor bringing S's actual moles to exactly sCoef
+  const oScaled = nO*k;            // O's actual moles under that same scale factor
+  const tol = 1e-9*Math.max(sCoef, oCoef, 1e-30);
+  const tie = Math.abs(oScaled-oCoef) <= tol;
+  // oScaled < oCoef -> O is limiting (falls short once scaled to match S)
+  // oScaled > oCoef -> S is limiting (O has more than its scaled share)
+  return {S,O,nS,nO,sCoef,oCoef,MS,MO,k,oScaled,tie};
+}

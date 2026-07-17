@@ -121,9 +121,29 @@
         </div>
       </div>
 
+      <!-- ============ CARD 1.5 · METHOD SELECT ============ -->
+      <div class="wizard-card prompt-card" id="card-method" hidden>
+        <span class="prompt-step">Step 2</span>
+        <p class="prompt-question">How do you want to find the limiting reactant?</p>
+        <div class="calc-eq" id="methodEq"></div>
+        <div class="choice-grid choice-grid--two">
+          <button class="choice-card choice-card--teal" data-method="given" type="button">
+            <span class="choice-verb">Given reactant method</span>
+            <span class="choice-desc">Pick one reactant to test as "used up first," then check whether there's enough of the other to match it.</span>
+          </button>
+          <button class="choice-card choice-card--lilac" data-method="direct" type="button">
+            <span class="choice-verb">Direct mol comparison</span>
+            <span class="choice-desc">Build a table of moles for both reactants, scale it to match the equation's ratio, and read the limiting reactant straight off the comparison.</span>
+          </button>
+        </div>
+        <div class="wizard-back-row">
+          <button class="btn btn--ghost" id="method-back" type="button">← Choose a different reaction</button>
+        </div>
+      </div>
+
       <!-- ============ CARD 2 · MEASUREMENTS ============ -->
       <div class="wizard-card prompt-card" id="card-measure" hidden>
-        <span class="prompt-step">Step 2</span>
+        <span class="prompt-step">Step 3</span>
         <p class="prompt-question">How much of each reactant do you have?</p>
         <div class="calc-eq" id="measureEq"></div>
         <div id="measureNote"></div>
@@ -131,7 +151,7 @@
         <p class="form-error" id="measure-error" hidden></p>
         <button class="btn btn--primary" id="measure-continue" type="button">Continue →</button>
         <div class="wizard-back-row">
-          <button class="btn btn--ghost" id="measure-back" type="button">← Choose a different reaction</button>
+          <button class="btn btn--ghost" id="measure-back" type="button">← Change method</button>
         </div>
       </div>
 

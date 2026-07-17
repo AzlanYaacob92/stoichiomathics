@@ -268,6 +268,7 @@ main { max-width: 900px; margin: 0 auto; padding: 8px 24px 0; }
 @keyframes grow-in { from { opacity: 0; transform: scale(.35); } to { opacity: 1; transform: scale(1); } }
 
 .choice-grid { display: grid; gap: 16px; grid-template-columns: repeat(3, 1fr); }
+.choice-grid--two { grid-template-columns: repeat(2, 1fr); }
 @media (max-width: 760px) { .choice-grid { grid-template-columns: 1fr; } }
 
 .choice-card {
@@ -293,6 +294,8 @@ main { max-width: 900px; margin: 0 auto; padding: 8px 24px 0; }
 .choice-card:hover { transform: translateY(-3px); box-shadow: 0 10px 30px rgba(19, 78, 74, .12); }
 .choice-card--lilac:hover { box-shadow: 0 10px 30px rgba(19, 78, 74, .12), 0 0 30px var(--lilac-glow); }
 .choice-card:active { transform: translateY(-1px) scale(.99); transition-duration: .12s; }
+.choice-card.active { border-width: 2px; box-shadow: var(--shadow), 0 0 0 3px var(--teal-100); }
+[data-theme="dark"] .choice-card.active { box-shadow: var(--shadow), 0 0 0 3px rgba(45, 212, 191, .35); }
 .choice-verb {
   font-family: var(--display);
   font-size: 1.4rem;

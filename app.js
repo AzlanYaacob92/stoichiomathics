@@ -198,7 +198,7 @@
     mode: null,             // 'learn' | 'test' | 'verify'
     cat: "all", els: new Set(), matchMode: "all", query: "",
     sel: null,              // a QUAL index, or the string 'custom'
-    inA: freshInput(), inB: freshInput(), pivot: "A",
+    inA: freshInput(), inB: freshInput(), pivot: "A", method: null,
     learn: null,            // { steps, idx, calcShown }
     prac: null,             // { steps, idx, revealed, guess }
     customCount: 1,         // number of products chosen in the custom builder (1–4)
@@ -218,6 +218,7 @@
     picker:  document.getElementById('card-picker'),
     customSetup: document.getElementById('card-custom-setup'),
     customBuild: document.getElementById('card-custom-build'),
+    method:  document.getElementById('card-method'),
     measure: document.getElementById('card-measure'),
     strategy:document.getElementById('card-strategy'),
     learn:   document.getElementById('card-learn'),
@@ -240,7 +241,7 @@
 
   function resetAll() {
     state.mode = null; state.sel = null;
-    state.inA = freshInput(); state.inB = freshInput(); state.pivot = "A";
+    state.inA = freshInput(); state.inB = freshInput(); state.pivot = "A"; state.method = null;
     state.learn = null; state.prac = null;
     state.customCount = 1; state.customFields = null; state.customQ = null;
     renderCatalog();
@@ -431,9 +432,9 @@
      the measurements card in — the table never clutters the working view. */
   function selectReaction(id) {
     state.sel = id;
-    state.inA = freshInput(); state.inB = freshInput(); state.pivot = "A";
+    state.inA = freshInput(); state.inB = freshInput(); state.pivot = "A"; state.method = null;
     state.learn = null; state.prac = null;
-    goTo('measure', 'forward', renderMeasure);
+    goTo('method', 'forward', renderMethodSelect);
   }
 
   /* ================= custom reaction builder =================
@@ -566,10 +567,25 @@
   function selectCustomReaction(q) {
     state.sel = 'custom';
     state.customQ = q;
-    state.inA = freshInput(); state.inB = freshInput(); state.pivot = "A";
+    state.inA = freshInput(); state.inB = freshInput(); state.pivot = "A"; state.method = null;
     state.learn = null; state.prac = null;
-    goTo('measure', 'forward', renderMeasure);
+    goTo('method', 'forward', renderMethodSelect);
   }
+
+  /* ---------------- method select ---------------- */
+  function renderMethodSelect() {
+    const q = currentQ();
+    document.getElementById('methodEq').innerHTML = fmtEq(q.eq);
+    document.querySelectorAll('#card-method [data-method]').forEach(b =>
+      b.classList.toggle('active', state.method === b.dataset.method));
+  }
+  document.querySelectorAll('#card-method [data-method]').forEach(b => b.addEventListener('click', () => {
+    state.method = b.dataset.method;
+    goTo('measure', 'forward', renderMeasure);
+  }));
+  document.getElementById('method-back').addEventListener('click', () => {
+    goTo(state.sel === 'custom' ? 'customBuild' : 'picker', 'back', state.sel === 'custom' ? renderCustomBuild : undefined);
+  });
 
   /* ---------------- measurements ---------------- */
   const VOL_LABEL = { cm3: 'cm³ (mL)', dm3: 'dm³ (L)' };
@@ -646,7 +662,7 @@
   }
 
   document.getElementById('measure-back').addEventListener('click', () => {
-    goTo(state.sel === 'custom' ? 'customBuild' : 'picker', 'back', state.sel === 'custom' ? renderCustomBuild : undefined);
+    goTo('method', 'back', renderMethodSelect);
   });
 
   document.getElementById('measure-continue').addEventListener('click', () => {
@@ -659,7 +675,11 @@
       return;
     }
     err.hidden = true;
-    goTo('strategy', 'forward', renderStrategy);
+    if (state.method === 'given') {
+      goTo('strategy', 'forward', renderStrategy);
+    } else {
+      beginWorking();
+    }
   });
 
   /* ---------------- strategy card (all branches) ---------------- */
@@ -707,7 +727,7 @@
     goTo('measure', 'back');
   });
 
-  document.getElementById('strategy-continue').addEventListener('click', () => {
+  function beginWorking() {
     if (state.mode === 'learn') {
       state.learn = { steps: buildLearnSteps(), idx: 0, calcShown: false };
       goTo('learn', 'forward', renderLearnStep);
@@ -717,7 +737,8 @@
     } else {
       goTo('verify', 'forward', renderVerify);
     }
-  });
+  }
+  document.getElementById('strategy-continue').addEventListener('click', beginWorking);
 
   /* ---------------- shared computation for the working ---------------- */
   function computed() {
@@ -801,8 +822,25 @@
     return [moleFootnote(inpP), moleFootnote(inpQ)].filter(Boolean).join(' ') || null;
   }
 
+  /* Direct mol comparison working — states the raw actual ratio, the scale
+     factor that brings the smaller-coefficient side to exactly its own
+     coefficient, the resulting scaled ratio, and the equation's ratio to
+     compare it against. */
+  function ratioTableMath(res, rv) {
+    const fA = fmtFormula(res.A.sp), fB = fmtFormula(res.B.sp);
+    const fS = fmtFormula(rv.S.sp), fO = fmtFormula(rv.O.sp);
+    return `n(${fA}) : n(${fB}) = ${sig(res.nA)} : ${sig(res.nB)}<br>` +
+      `Scale factor = ${sig(rv.sCoef)} ⁄ ${sig(rv.nS)} = ${sig(rv.k)}<br>` +
+      `n(${fS}) : n(${fO}) scaled = ${sig(rv.sCoef)} : ${sig(rv.oScaled)}<br>` +
+      `Equation ratio = ${sig(rv.sCoef)} : ${sig(rv.oCoef)}`;
+  }
+
   /* ---------------- LEARN: build the step list ---------------- */
   function buildLearnSteps() {
+    return state.method === 'direct' ? buildLearnStepsDirect() : buildLearnStepsGiven();
+  }
+
+  function buildLearnStepsGiven() {
     const { q, res } = computed();
     const pv = pivotView(res, state.pivot);
     const inpP = pv.pivot === 'A' ? state.inA : state.inB;
@@ -870,6 +908,72 @@
     return steps;
   }
 
+  function buildLearnStepsDirect() {
+    const { q, res } = computed();
+    const A = q.A, B = q.B;
+    const fA = fmtFormula(A.sp), fB = fmtFormula(B.sp);
+    const steps = [];
+
+    // molar masses — one combined step for whichever reactants are entered
+    // by mass, natural equation order (no pivot in this method)
+    const massSides = [[A, state.inA], [B, state.inB]].filter(([, inp]) => inp.method === 'mass');
+    if (massSides.length === 2) {
+      steps.push({
+        instruction: `Work out the molar masses of ${fA} and ${fB}.`,
+        strategy: 'Add up the relative atomic masses of every atom in each formula — multiply by the subscript where an element appears more than once.',
+        math: `${mmMath(A.sp)}<br>${mmMath(B.sp)}`
+      });
+    } else if (massSides.length === 1) {
+      const [x] = massSides[0];
+      steps.push({
+        instruction: `Work out the molar mass of ${fmtFormula(x.sp)}.`,
+        strategy: 'Add up the relative atomic masses of every atom in the formula — multiply by the subscript where an element appears more than once.',
+        math: mmMath(x.sp)
+      });
+    }
+
+    // moles of both reactants — one combined step
+    steps.push({
+      instruction: `Convert the amounts of ${fA} and ${fB} to moles.`,
+      strategy: moleStrategyCombined(state.inA, A.sp, state.inB, B.sp),
+      footnote: moleFootnoteCombined(state.inA, state.inB),
+      math: `${moleMath(state.inA, A.sp, res.nA)}<br>${moleMath(state.inB, B.sp, res.nB)}`
+    });
+
+    // stoichiometric mole ratio
+    steps.push({
+      instruction: 'Read off the stoichiometric mole ratio.',
+      strategy: `From the balanced equation, ${fA} and ${fB} react in the ratio ${A.coef} : ${B.coef} — this is the ratio the actual moles need to match.`,
+      math: `${fA} : ${fB} = ${A.coef} : ${B.coef}`
+    });
+
+    // normalize the actual ratio to the smaller-coefficient side and read
+    // the comparison straight off — no assumption to test, just a direct
+    // side-by-side scaled comparison.
+    const rv = ratioCompareView(res);
+    const fS = fmtFormula(rv.S.sp), fO = fmtFormula(rv.O.sp);
+    steps.push({
+      instruction: 'Normalize the actual mole ratio to compare it directly.',
+      strategy: `Scale the actual moles so ${fS} — the reactant with the smaller coefficient — matches its own coefficient, ${sig(rv.sCoef)}, exactly. Multiply both actual amounts by that same scale factor, then read off how much ${fO} that leaves you with, and compare it directly against ${fO}'s own coefficient, ${sig(rv.oCoef)}.`,
+      math: ratioTableMath(res, rv)
+    });
+
+    // interpret the comparison
+    steps.push({
+      instruction: 'Interpret the comparison.',
+      strategy: rv.tie
+        ? `Scaled to match, both sides land exactly on their coefficients — the reactants are in exactly the stoichiometric ratio, so neither is in excess.`
+        : (rv.oScaled > rv.oCoef
+          ? `Scaled to match ${fS}, ${fO} comes out to ${sig(rv.oScaled)} — more than the ${sig(rv.oCoef)} the equation calls for. That extra means ${fO} is in <b>excess</b>, and ${fS} is the <b>limiting reactant</b>.`
+          : `Scaled to match ${fS}, ${fO} only reaches ${sig(rv.oScaled)} — short of the ${sig(rv.oCoef)} the equation calls for. That shortfall means ${fO} is the <b>limiting reactant</b>, and ${fS} is left in <b>excess</b>.`),
+      math: rv.tie
+        ? `${sig(rv.oScaled)} = ${sig(rv.oCoef)} required`
+        : `${sig(rv.oScaled)} ${rv.oScaled > rv.oCoef ? '>' : '<'} ${sig(rv.oCoef)} required`
+    });
+
+    return steps;
+  }
+
   const learnEyebrow = document.getElementById('learn-eyebrow');
   const learnInstruction = document.getElementById('learn-instruction');
   const learnStrategy = document.getElementById('learn-strategy');
@@ -912,6 +1016,10 @@
 
   /* ---------------- PRACTISE: one card at a time, gated ---------------- */
   function buildPracSteps() {
+    return state.method === 'direct' ? buildPracStepsDirect() : buildPracStepsGiven();
+  }
+
+  function buildPracStepsGiven() {
     const { q, res } = computed();
     const pv = pivotView(res, state.pivot);
     const fP = fmtFormula(pv.P.sp), fQ = fmtFormula(pv.Q.sp);
@@ -942,6 +1050,44 @@
         strategy: res.tie
           ? 'Compare the needed amount with the available amount. Careful — this one may surprise you.'
           : `Make a prediction first — was ${fP} really the one that runs out, or does the comparison say otherwise? Then reveal.`,
+        kind: 'guess'
+      }
+    ];
+  }
+
+  function buildPracStepsDirect() {
+    const { q, res } = computed();
+    const A = q.A, B = q.B;
+    const fA = fmtFormula(A.sp), fB = fmtFormula(B.sp);
+    const rv = ratioCompareView(res);
+    const fS = fmtFormula(rv.S.sp), fO = fmtFormula(rv.O.sp);
+
+    return [
+      {
+        instruction: 'Here are the moles — the rest is yours.',
+        strategy: `Both amounts have been converted to moles for you. From here, build the comparison yourself before revealing.`,
+        kind: 'given',
+        body: `<div class="ans-lines">${mathGrid(`n(${fA}) = ${sig(res.nA)} mol<br>n(${fB}) = ${sig(res.nB)} mol`)}</div>`
+      },
+      {
+        instruction: 'Read off the stoichiometric mole ratio.',
+        strategy: `What is the ${fA} : ${fB} ratio in the balanced equation? Say it out loud, then reveal.`,
+        kind: 'reveal',
+        revealLabel: 'Ratio from the balanced equation — try it first',
+        body: `<div class="ans-lines">${mathGrid(`${fA} : ${fB} = ${A.coef} : ${B.coef}`)}</div>`
+      },
+      {
+        instruction: 'Normalize the actual ratio to compare directly.',
+        strategy: `Scale the actual moles so ${fS} matches its own coefficient (${sig(rv.sCoef)}) exactly, then see what that makes ${fO}. Work it out on paper, then reveal.`,
+        kind: 'reveal',
+        revealLabel: `Scaled ratio vs the equation's ratio`,
+        body: `<div class="ans-lines">${mathGrid(ratioTableMath(res, rv))}</div>`
+      },
+      {
+        instruction: 'Which reactant is limiting?',
+        strategy: rv.tie
+          ? 'Compare the scaled amount with the required coefficient. Careful — this one may surprise you.'
+          : `Make a prediction first — once ${fS} is scaled to match, does ${fO} have enough, or not? Then reveal.`,
         kind: 'guess'
       }
     ];
@@ -1029,12 +1175,23 @@
     } else {
       feedback = `<div class="gverdict">Answer revealed — see the conclusion.</div>`;
     }
-    const pv = pivotView(res, state.pivot);
-    const branchNote = res.tie
-      ? `Both reactants run out together — exactly stoichiometric, so your test on ${fmtFormula(pv.P.sp)} couldn't have gone wrong either way.`
-      : pv.enough
-        ? `Your test on <b>${fmtFormula(pv.P.sp)}</b> held up: it really does run out first.`
-        : `Your test on <b>${fmtFormula(pv.P.sp)}</b> didn't hold up — there wasn't enough ${fmtFormula(pv.Q.sp)} to use it all up, so <b>${fmtFormula(pv.Q.sp)}</b> runs out first instead.`;
+    let branchNote;
+    if (state.method === 'direct') {
+      const rv = ratioCompareView(res);
+      const fS = fmtFormula(rv.S.sp), fO = fmtFormula(rv.O.sp);
+      branchNote = rv.tie
+        ? `Scaled to match, both sides land exactly on their coefficients — exactly stoichiometric, so neither reactant is in excess.`
+        : (rv.oScaled > rv.oCoef
+          ? `Scaled to match <b>${fS}</b>, <b>${fO}</b> comes out ahead of what's needed — so <b>${fS}</b> is the one that runs out first.`
+          : `Scaled to match <b>${fS}</b>, <b>${fO}</b> falls short of what's needed — so <b>${fO}</b> is the one that runs out first.`);
+    } else {
+      const pv = pivotView(res, state.pivot);
+      branchNote = res.tie
+        ? `Both reactants run out together — exactly stoichiometric, so your test on ${fmtFormula(pv.P.sp)} couldn't have gone wrong either way.`
+        : pv.enough
+          ? `Your test on <b>${fmtFormula(pv.P.sp)}</b> held up: it really does run out first.`
+          : `Your test on <b>${fmtFormula(pv.P.sp)}</b> didn't hold up — there wasn't enough ${fmtFormula(pv.Q.sp)} to use it all up, so <b>${fmtFormula(pv.Q.sp)}</b> runs out first instead.`;
+    }
     feedback += `<p class="branch-note">${branchNote}</p>`;
     pracBody.innerHTML = feedback;
     pracNext.hidden = false;
@@ -1056,6 +1213,10 @@
 
   /* ---------------- VERIFY: answers only ---------------- */
   function renderVerify() {
+    return state.method === 'direct' ? renderVerifyDirect() : renderVerifyGiven();
+  }
+
+  function renderVerifyGiven() {
     const { q, res } = computed();
     const pv = pivotView(res, state.pivot);
     const inpP = pv.pivot === 'A' ? state.inA : state.inB;
@@ -1084,6 +1245,30 @@
       const rv = pivotView(res, pv.pivot === 'A' ? 'B' : 'A');
       rows.push(['What if — use up the other reactant', `To fully react all <b>${sig(rv.nP)}</b> mol of ${fmtFormula(rv.P.sp)} instead, you'd need <b>${sig(rv.nQneed)}</b> mol of ${fmtFormula(rv.Q.sp)}, but only <b>${sig(rv.nQ)}</b> mol is available — short by <b>${sig(rv.nQneed - rv.nQ)}</b> mol.`]);
     }
+
+    document.getElementById('verify-body').innerHTML = rows.map(([label, html]) =>
+      `<div class="vrow"><div class="vlabel">${label}</div><div class="vval">${html}</div></div>`).join('');
+  }
+
+  function renderVerifyDirect() {
+    const { q, res } = computed();
+    const A = q.A, B = q.B;
+    const fA = fmtFormula(A.sp), fB = fmtFormula(B.sp);
+    const rv = ratioCompareView(res);
+    const fS = fmtFormula(rv.S.sp), fO = fmtFormula(rv.O.sp);
+    const rows = [];
+
+    const massSides = [[A, state.inA], [B, state.inB]].filter(([x, inp]) => inp.method === 'mass');
+    if (massSides.length) {
+      rows.push(['Molar mass' + (massSides.length > 1 ? 'es' : ''),
+        massSides.map(([x]) => `M<sub>r</sub>(${fmtFormula(x.sp)}) = <b>${mm1(molarMass(x.sp))}</b> g mol⁻¹`).join('<span class="dotsep">·</span>')]);
+    }
+    rows.push(['Moles', `n(${fA}) = <b>${sig(res.nA)}</b> mol<span class="dotsep">·</span>n(${fB}) = <b>${sig(res.nB)}</b> mol`]);
+    rows.push(['Stoichiometric ratio', `${fA} : ${fB} = <b>${A.coef} : ${B.coef}</b>`]);
+    rows.push([`Scaled to match ${fS}`, `${fS} : ${fO} = <b>${sig(rv.sCoef)} : ${sig(rv.oScaled)}</b> &nbsp;(needs <b>${sig(rv.oCoef)}</b>)`]);
+    rows.push(['Conclusion', res.tie
+      ? `Limiting: <b>neither — exactly stoichiometric</b>`
+      : `Limiting: <b>${fmtFormula(res.limiting.sp)}</b><span class="dotsep">·</span>Excess: <b>${fmtFormula(res.excess.sp)}</b> (<b>${sig(res.leftMass)}</b> g / ${sig(res.leftMol)} mol left over)`]);
 
     document.getElementById('verify-body').innerHTML = rows.map(([label, html]) =>
       `<div class="vrow"><div class="vlabel">${label}</div><div class="vval">${html}</div></div>`).join('');
