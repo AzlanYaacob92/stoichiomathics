@@ -949,7 +949,7 @@
         rowLabel: 'Normalised ratio',
         cellA: SisA ? sCell : oCell, cellB: SisA ? oCell : sCell,
         instruction: `Normalise the actual ratio to the equation's ratio.`,
-        strategy: `Scale both actual amounts by the same factor so ${fS} — the reactant with the smaller coefficient — matches its own coefficient (${sig(rv.sCoef)}) exactly. That scale factor is ${sig(rv.k)}.`
+        strategy: `Divide each actual mole amount by n(${fS}) — ${fS}'s own moles, the reactant with the smaller coefficient — then multiply by ${fS}'s stoichiometric coefficient (${sig(rv.sCoef)}). For ${fS} itself this simply gives back ${sig(rv.sCoef)}; for ${fO}, ${sig(rv.nO)} mol becomes ${sig(rv.oScaled)}.`
       },
       {
         rowLabel: 'Comparison',
@@ -1137,16 +1137,16 @@
       },
       {
         instruction: 'Normalise the actual ratio to compare directly.',
-        strategy: `Scale the actual moles so ${fS} matches its own coefficient (${sig(rv.sCoef)}) exactly, then see what that makes ${fO}. Work it out on paper, then reveal.`,
+        strategy: `Divide each actual mole amount by n(${fS}) — the reactant with the smaller coefficient — then multiply by ${fS}'s own coefficient (${sig(rv.sCoef)}). Work out what that makes ${fO}, then reveal.`,
         kind: 'reveal',
-        revealLabel: `Scaled ratio vs the equation's ratio`,
+        revealLabel: `Normalised ratio vs the equation's ratio`,
         body: `<div class="ans-lines">${mathGrid(ratioTableMath(res, rv))}</div>`
       },
       {
         instruction: 'Which reactant is limiting?',
         strategy: rv.tie
-          ? 'Compare the scaled amount with the required coefficient. Careful — this one may surprise you.'
-          : `Make a prediction first — once ${fS} is scaled to match, does ${fO} have enough, or not? Then reveal.`,
+          ? 'Compare the normalised amount with the required coefficient. Careful — this one may surprise you.'
+          : `Make a prediction first — once ${fS}'s ratio is normalised, does ${fO} have enough, or not? Then reveal.`,
         kind: 'guess'
       }
     ];
