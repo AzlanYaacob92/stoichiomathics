@@ -836,8 +836,8 @@
     const fA = fmtFormula(res.A.sp), fB = fmtFormula(res.B.sp);
     const fS = fmtFormula(rv.S.sp), fO = fmtFormula(rv.O.sp);
     return `n(${fA}) : n(${fB}) = ${sig(res.nA)} : ${sig(res.nB)}<br>` +
-      `Scale factor = ${sig(rv.sCoef)} ⁄ ${sig(rv.nS)} = ${sig(rv.k)}<br>` +
-      `n(${fS}) : n(${fO}) scaled = ${sig(rv.sCoef)} : ${sig(rv.oScaled)}<br>` +
+      `n(${fS}) ÷ n(${fS}) × ${sig(rv.sCoef)} = ${sig(rv.nS)} ÷ ${sig(rv.nS)} × ${sig(rv.sCoef)} = ${sig(rv.sCoef)}<br>` +
+      `n(${fO}) ÷ n(${fS}) × ${sig(rv.sCoef)} = ${sig(rv.nO)} ÷ ${sig(rv.nS)} × ${sig(rv.sCoef)} = ${sig(rv.oScaled)}<br>` +
       `Equation ratio = ${sig(rv.sCoef)} : ${sig(rv.oCoef)}`;
   }
 
@@ -925,8 +925,8 @@
     const molCellA = mathGrid(moleMath(state.inA, A.sp, res.nA));
     const molCellB = mathGrid(moleMath(state.inB, B.sp, res.nB));
 
-    const sCell = mathGrid(`n(${fS}) × ${sig(rv.k)} = ${sig(rv.sCoef)}`);
-    const oCell = mathGrid(`n(${fO}) × ${sig(rv.k)} = ${sig(rv.nO)} × ${sig(rv.k)} = ${sig(rv.oScaled)}`);
+    const sCell = mathGrid(`${frac(`n(${fS})`, `n(${fS})`)} × ${sig(rv.sCoef)} = ${frac(sig(rv.nS), sig(rv.nS))} × ${sig(rv.sCoef)} = ${sig(rv.sCoef)}`);
+    const oCell = mathGrid(`${frac(`n(${fO})`, `n(${fS})`)} × ${sig(rv.sCoef)} = ${frac(sig(rv.nO), sig(rv.nS))} × ${sig(rv.sCoef)} = ${sig(rv.oScaled)}`);
 
     const cmpS = mathGrid(`stoichiometric = ${sig(rv.sCoef)}<br>scaled actual = ${sig(rv.sCoef)}`);
     const cmpO = mathGrid(`stoichiometric = ${sig(rv.oCoef)}<br>scaled actual = ${sig(rv.oScaled)}`);
@@ -1359,7 +1359,14 @@
 
     // "What if" — flip the pivot onto the excess reactant, so the student can
     // see exactly how much more of the limiting reactant they'd need to fully
-    // react the excess instead. The shortfall is the same reason it's limiting.
+    // react the excess instead. This reframes around a pivot choice, so it
+    // only applies to the Given Reactant method — Direct Mol Comparison
+    // already showed the full normalised comparison on its own table.
+    if (state.method === 'direct') {
+      whatif.hidden = true;
+      return;
+    }
+
     whatif.hidden = false;
     whatifBody.hidden = true;
     whatifBody.innerHTML = '';
