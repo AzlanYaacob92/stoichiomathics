@@ -730,13 +730,13 @@
   });
 
   function beginWorking() {
+    if (state.method === 'direct' && (state.mode === 'learn' || state.mode === 'test')) {
+      goTo('ratioTable', 'forward', setupRatioTable);
+      return;
+    }
     if (state.mode === 'learn') {
-      if (state.method === 'direct') {
-        goTo('ratioTable', 'forward', setupRatioTable);
-      } else {
-        state.learn = { steps: buildLearnSteps(), idx: 0, calcShown: false };
-        goTo('learn', 'forward', renderLearnStep);
-      }
+      state.learn = { steps: buildLearnSteps(), idx: 0, calcShown: false };
+      goTo('learn', 'forward', renderLearnStep);
     } else if (state.mode === 'test') {
       state.prac = { steps: buildPracSteps(), idx: 0, revealed: false, guess: null };
       goTo('prac', 'forward', renderPracStep);
@@ -826,19 +826,6 @@
   }
   function moleFootnoteCombined(inpP, inpQ) {
     return [moleFootnote(inpP), moleFootnote(inpQ)].filter(Boolean).join(' ') || null;
-  }
-
-  /* Direct mol comparison working — states the raw actual ratio, the scale
-     factor that brings the smaller-coefficient side to exactly its own
-     coefficient, the resulting scaled ratio, and the equation's ratio to
-     compare it against. */
-  function ratioTableMath(res, rv) {
-    const fA = fmtFormula(res.A.sp), fB = fmtFormula(res.B.sp);
-    const fS = fmtFormula(rv.S.sp), fO = fmtFormula(rv.O.sp);
-    return `n(${fA}) : n(${fB}) = ${sig(res.nA)} : ${sig(res.nB)}<br>` +
-      `n(${fS}) ÷ n(${fS}) × ${sig(rv.sCoef)} = ${sig(rv.nS)} ÷ ${sig(rv.nS)} × ${sig(rv.sCoef)} = ${sig(rv.sCoef)}<br>` +
-      `n(${fO}) ÷ n(${fS}) × ${sig(rv.sCoef)} = ${sig(rv.nO)} ÷ ${sig(rv.nS)} × ${sig(rv.sCoef)} = ${sig(rv.oScaled)}<br>` +
-      `Equation ratio = ${sig(rv.sCoef)} : ${sig(rv.oCoef)}`;
   }
 
   /* ---------------- LEARN: build the step list ---------------- */
@@ -965,26 +952,58 @@
     ];
   }
 
-  /* Growing ratio table (Learn + Direct method only): the card itself never
-     changes — the equation and table are set up once. Each "Next step"
-     click adds one row straight away, working included, so there's no
-     separate reveal phase. The explanation for that row (why/how) sits in
-     a small callout the student can toggle open or closed independently
-     per row, rather than dominating the card up front. */
+  /* Growing ratio table (Direct method — shared by Learn and Check my
+     understanding): the card itself never changes — the equation and
+     table are set up once. In Learn, each "Next step" click adds a row
+     with its working shown straight away, and a small ⓘ toggles an
+     explanation callout open or closed per row. In Check my understanding,
+     the same row appears first with its cells blank, and a ? toggles an
+     optional hint (the same explanation, offered rather than given); a
+     second click reveals the real values in place before moving on — so
+     students try the row themselves before checking it. */
   function setupRatioTable() {
     const q = currentQ();
     document.getElementById('ratioEq').innerHTML = fmtEq(q.eq);
     document.getElementById('ratio-thead').innerHTML =
       `<th></th><th>${fmtFormula(q.A.sp)}</th><th>${fmtFormula(q.B.sp)}</th>`;
     document.getElementById('ratio-tbody').innerHTML = '';
-    state.ratio = { rows: buildRatioTableSteps(), idx: 0 };
+    state.ratio = { rows: buildRatioTableSteps(), idx: 0, shown: false };
     document.getElementById('ratio-eyebrow').textContent = `Step 1 of ${state.ratio.rows.length}`;
     document.getElementById('ratio-next').textContent = 'Next step →';
+
+    const isPrac = state.mode === 'test';
+    document.getElementById('ratio-instruction').textContent = isPrac
+      ? 'Try each row yourself first'
+      : 'Building the comparison table';
+    document.getElementById('ratio-strategy').innerHTML = isPrac
+      ? `Work out each row before it's revealed. Tap <span class="ratio-info-inline">?</span> next to any row if you'd like a hint first.`
+      : `Each step adds a row with its working shown straight away. Tap <span class="ratio-info-inline">ⓘ</span> next to any row to see what's being calculated and how.`;
   }
 
+  function ratioCalloutRow(row, i) {
+    const tr = document.createElement('tr');
+    tr.className = 'ratio-callout-row';
+    tr.dataset.row = i;
+    tr.hidden = true;
+    tr.innerHTML = `<td colspan="3"><div class="ratio-callout">
+        <p class="ratio-callout-instruction">${row.instruction}</p>
+        <p class="ratio-callout-strategy">${row.strategy}</p>
+        ${row.footnote ? `<p class="ratio-callout-footnote">${row.footnote}</p>` : ''}
+      </div></td>`;
+    return tr;
+  }
+  function wireRatioInfoBtn(btn, calloutTr) {
+    btn.addEventListener('click', () => {
+      const expanded = calloutTr.hidden === false;
+      calloutTr.hidden = expanded;
+      btn.setAttribute('aria-expanded', String(!expanded));
+      btn.classList.toggle('active', !expanded);
+    });
+  }
+
+  // Learn: row appears with working already filled in, callout available
   function appendRatioRow(row, i) {
     const tbody = document.getElementById('ratio-tbody');
-
     const dataTr = document.createElement('tr');
     dataTr.className = 'ratio-row-in';
     const clsA = row.highlight === 'a' ? ' class="ratio-limiting"' : '';
@@ -994,41 +1013,74 @@
       `<td${clsA}>${row.cellA}</td><td${clsB}>${row.cellB}</td>`;
     tbody.appendChild(dataTr);
 
-    const calloutTr = document.createElement('tr');
-    calloutTr.className = 'ratio-callout-row';
-    calloutTr.dataset.row = i;
-    calloutTr.hidden = true;
-    calloutTr.innerHTML = `<td colspan="3"><div class="ratio-callout">
-        <p class="ratio-callout-instruction">${row.instruction}</p>
-        <p class="ratio-callout-strategy">${row.strategy}</p>
-        ${row.footnote ? `<p class="ratio-callout-footnote">${row.footnote}</p>` : ''}
-      </div></td>`;
+    const calloutTr = ratioCalloutRow(row, i);
     tbody.appendChild(calloutTr);
+    wireRatioInfoBtn(dataTr.querySelector('.ratio-info-btn'), calloutTr);
+  }
 
-    dataTr.querySelector('.ratio-info-btn').addEventListener('click', () => {
-      const expanded = calloutTr.hidden === false;
-      calloutTr.hidden = expanded;
-      const btn = dataTr.querySelector('.ratio-info-btn');
-      btn.setAttribute('aria-expanded', String(!expanded));
-      btn.classList.toggle('active', !expanded);
-    });
+  // Check my understanding: row appears blank, hint available, values
+  // filled in on reveal
+  function appendRatioRowBlank(row, i) {
+    const tbody = document.getElementById('ratio-tbody');
+    const dataTr = document.createElement('tr');
+    dataTr.className = 'ratio-row-in';
+    dataTr.dataset.row = i;
+    dataTr.innerHTML =
+      `<th>${row.rowLabel} <button class="ratio-info-btn" type="button" data-row="${i}" aria-expanded="false" aria-label="Show hint for ${row.rowLabel}">?</button></th>` +
+      `<td class="ratio-blank">?</td><td class="ratio-blank">?</td>`;
+    tbody.appendChild(dataTr);
+
+    const calloutTr = ratioCalloutRow(row, i);
+    tbody.appendChild(calloutTr);
+    wireRatioInfoBtn(dataTr.querySelector('.ratio-info-btn'), calloutTr);
+  }
+  function revealRatioRow(row, i) {
+    const dataTr = document.querySelector(`#ratio-tbody tr.ratio-row-in[data-row="${i}"]`);
+    if (!dataTr) return;
+    const [cellA, cellB] = dataTr.querySelectorAll('td');
+    cellA.innerHTML = row.cellA; cellB.innerHTML = row.cellB;
+    cellA.classList.remove('ratio-blank'); cellB.classList.remove('ratio-blank');
+    if (row.highlight === 'a') cellA.classList.add('ratio-limiting');
+    if (row.highlight === 'b') cellB.classList.add('ratio-limiting');
+    const infoBtn = dataTr.querySelector('.ratio-info-btn');
+    infoBtn.textContent = 'ⓘ';
+    infoBtn.setAttribute('aria-label', `Show explanation for ${row.rowLabel}`);
   }
 
   document.getElementById('ratio-next').addEventListener('click', () => {
     if (!state.ratio) return;
     const { rows, idx } = state.ratio;
     const btn = document.getElementById('ratio-next');
-    if (idx < rows.length) {
-      appendRatioRow(rows[idx], idx);
-      state.ratio.idx = idx + 1;
-      if (state.ratio.idx < rows.length) {
-        document.getElementById('ratio-eyebrow').textContent = `Step ${state.ratio.idx + 1} of ${rows.length}`;
-        btn.textContent = state.ratio.idx === rows.length - 1 ? 'Add the last row →' : 'Next step →';
-      } else {
-        btn.textContent = 'Reveal the conclusion →';
-      }
-    } else {
+    const isPrac = state.mode === 'test';
+
+    if (idx >= rows.length) {
       goTo('verdict', 'forward', renderVerdict);
+      return;
+    }
+
+    if (isPrac && !state.ratio.shown) {
+      // phase 1: show the row blank, so the student can try it first
+      appendRatioRowBlank(rows[idx], idx);
+      state.ratio.shown = true;
+      btn.textContent = 'Reveal this row →';
+      return;
+    }
+
+    if (isPrac) {
+      // phase 2: reveal the values already on the page
+      revealRatioRow(rows[idx], idx);
+    } else {
+      // Learn: filled straight away, no separate reveal phase
+      appendRatioRow(rows[idx], idx);
+    }
+
+    state.ratio.idx = idx + 1;
+    state.ratio.shown = false;
+    if (state.ratio.idx < rows.length) {
+      document.getElementById('ratio-eyebrow').textContent = `Step ${state.ratio.idx + 1} of ${rows.length}`;
+      btn.textContent = 'Next step →';
+    } else {
+      btn.textContent = 'Reveal the conclusion →';
     }
   });
 
@@ -1075,7 +1127,7 @@
 
   /* ---------------- PRACTISE: one card at a time, gated ---------------- */
   function buildPracSteps() {
-    return state.method === 'direct' ? buildPracStepsDirect() : buildPracStepsGiven();
+    return buildPracStepsGiven();
   }
 
   function buildPracStepsGiven() {
@@ -1109,44 +1161,6 @@
         strategy: res.tie
           ? 'Compare the needed amount with the available amount. Careful — this one may surprise you.'
           : `Make a prediction first — was ${fP} really the one that runs out, or does the comparison say otherwise? Then reveal.`,
-        kind: 'guess'
-      }
-    ];
-  }
-
-  function buildPracStepsDirect() {
-    const { q, res } = computed();
-    const A = q.A, B = q.B;
-    const fA = fmtFormula(A.sp), fB = fmtFormula(B.sp);
-    const rv = ratioCompareView(res);
-    const fS = fmtFormula(rv.S.sp), fO = fmtFormula(rv.O.sp);
-
-    return [
-      {
-        instruction: 'Here are the moles — the rest is yours.',
-        strategy: `Both amounts have been converted to moles for you. From here, build the comparison yourself before revealing.`,
-        kind: 'given',
-        body: `<div class="ans-lines">${mathGrid(`n(${fA}) = ${sig(res.nA)} mol<br>n(${fB}) = ${sig(res.nB)} mol`)}</div>`
-      },
-      {
-        instruction: 'Read off the stoichiometric mole ratio.',
-        strategy: `What is the ${fA} : ${fB} ratio in the balanced equation? Say it out loud, then reveal.`,
-        kind: 'reveal',
-        revealLabel: 'Ratio from the balanced equation — try it first',
-        body: `<div class="ans-lines">${mathGrid(`${fA} : ${fB} = ${A.coef} : ${B.coef}`)}</div>`
-      },
-      {
-        instruction: 'Normalise the actual ratio to compare directly.',
-        strategy: `Divide each actual mole amount by n(${fS}) — the reactant with the smaller coefficient — then multiply by ${fS}'s own coefficient (${sig(rv.sCoef)}). Work out what that makes ${fO}, then reveal.`,
-        kind: 'reveal',
-        revealLabel: `Normalised ratio vs the equation's ratio`,
-        body: `<div class="ans-lines">${mathGrid(ratioTableMath(res, rv))}</div>`
-      },
-      {
-        instruction: 'Which reactant is limiting?',
-        strategy: rv.tie
-          ? 'Compare the normalised amount with the required coefficient. Careful — this one may surprise you.'
-          : `Make a prediction first — once ${fS}'s ratio is normalised, does ${fO} have enough, or not? Then reveal.`,
         kind: 'guess'
       }
     ];
