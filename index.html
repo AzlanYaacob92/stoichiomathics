@@ -38,14 +38,10 @@
         <div class="landing-content" id="landing-content">
          <a class="back-link" href="https://azlanyaacob92.github.io/">← Chemculator home</a>
           <p class="hero-lead" id="hero-lead">I want to…</p>
-          <div class="choice-grid">
+          <div class="choice-grid choice-grid--two">
             <button class="choice-card choice-card--teal" data-choose="learn" type="button">
               <span class="choice-verb">Learn</span>
               <span class="choice-desc">Walk me through finding the limiting reactant, one step at a time — the thinking first, then the numbers.</span>
-            </button>
-            <button class="choice-card choice-card--lilac" data-choose="test" type="button">
-              <span class="choice-verb">Check my understanding</span>
-              <span class="choice-desc">Give me the moles, then let me work out the ratio and the verdict myself before revealing.</span>
             </button>
             <button class="choice-card choice-card--gold" data-choose="verify" type="button">
               <span class="choice-verb">Verify my answer</span>
@@ -190,7 +186,7 @@
         </div>
       </div>
 
-      <!-- ============ CARD 4a-direct · LEARN + CHECK, direct mol comparison ============ -->
+      <!-- ============ CARD 4a-direct · LEARN, direct mol comparison ============ -->
       <div class="wizard-card step-combo" id="card-ratio-table" hidden>
         <div class="step-strategy-zone">
           <span class="strategy-eyebrow" id="ratio-eyebrow">Step 1 of 4</span>
@@ -212,21 +208,6 @@
         </div>
       </div>
 
-      <!-- ============ CARD 4b · PRACTISE — one step at a time ============ -->
-      <div class="wizard-card step-combo" id="card-prac" hidden>
-        <div class="step-strategy-zone">
-          <span class="strategy-eyebrow" id="prac-eyebrow">Step 1</span>
-          <p class="strategy-instruction" id="prac-instruction"></p>
-          <p class="strategy-text" id="prac-strategy"></p>
-        </div>
-        <div class="step-calc-zone">
-          <div id="prac-body"></div>
-        </div>
-        <div class="step-combo-actions">
-          <button class="btn btn--primary" id="prac-next" type="button" hidden>Next step →</button>
-        </div>
-      </div>
-
       <!-- ============ CARD 4c · VERIFY — answers only ============ -->
       <div class="wizard-card worksheet" id="card-verify" hidden>
         <div class="worksheet-header">
@@ -240,7 +221,7 @@
         </div>
       </div>
 
-      <!-- ============ CARD 5 · VERDICT (learn + practise) ============ -->
+      <!-- ============ CARD 5 · VERDICT (learn only) ============ -->
       <div class="wizard-card verdict-card" id="card-verdict" hidden>
         <span class="strategy-eyebrow">Conclusion</span>
         <p class="verdict-headline" id="verdict-headline"></p>

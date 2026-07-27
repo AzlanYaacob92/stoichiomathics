@@ -5,9 +5,8 @@
      → strategy card → branch:
         Learn    — one step-combo card at a time, stacked equations revealed
                    line by line with a typewriter wipe; formula first, then
-                   substitution, then the result.
-        Practise — one card at a time; moles are given, the ratio / comparison
-                   are hidden until revealed, and the verdict is guessed first.
+                   substitution, then the result. Direct Mol Comparison uses
+                   its own growing ratio-table card instead of card-learn.
         Verify   — answers only, on a single worksheet card.
    Depends on chemistry.js (AM, CAT, QUAL, MOLAR_VOL, fmtEq, fmtFormula,
    molarMass, massParts, computeLimiting). All chemistry stays in chemistry.js.
@@ -195,20 +194,19 @@
   /* ---------------- state ---------------- */
   function freshInput() { return { method: "mass", mass: "", conc: "", cvol: "", cvolUnit: "cm3", gvol: "", gvolUnit: "dm3", cond: "RTP" }; }
   const state = {
-    mode: null,             // 'learn' | 'test' | 'verify'
+    mode: null,             // 'learn' | 'verify'
     cat: "all", els: new Set(), matchMode: "all", query: "",
     sel: null,              // a QUAL index, or the string 'custom'
     inA: freshInput(), inB: freshInput(), pivot: "A", method: null,
     learn: null,            // { steps, idx, calcShown }
-    prac: null,             // { steps, idx, revealed, guess }
     ratio: null,            // { rows, idx, rowShown } — direct-method growing ratio table (Learn only)
     customCount: 1,         // number of products chosen in the custom builder (1–4)
     customFields: null,     // working {coef, name} rows while the builder is open — session-only, never saved
     customQ: null           // the built custom reaction, same shape as a QUAL entry
   };
-  const MODE_VERB = { learn: 'Learn', test: 'Check my understanding', verify: 'Verify my answer' };
+  const MODE_VERB = { learn: 'Learn', verify: 'Verify my answer' };
 
-  // Every place downstream (measure/strategy/learn/practice/verify) reads the
+  // Every place downstream (measure/strategy/learn/verify) reads the
   // active reaction through this, so a custom, session-only reaction can sit
   // alongside the QUAL database without ever being written into it.
   function currentQ() { return state.sel === 'custom' ? state.customQ : QUAL[state.sel]; }
@@ -224,7 +222,6 @@
     strategy:document.getElementById('card-strategy'),
     learn:   document.getElementById('card-learn'),
     ratioTable: document.getElementById('card-ratio-table'),
-    prac:    document.getElementById('card-prac'),
     verify:  document.getElementById('card-verify'),
     verdict: document.getElementById('card-verdict')
   };
@@ -244,7 +241,7 @@
   function resetAll() {
     state.mode = null; state.sel = null;
     state.inA = freshInput(); state.inB = freshInput(); state.pivot = "A"; state.method = null;
-    state.learn = null; state.prac = null; state.ratio = null;
+    state.learn = null; state.ratio = null;
     state.customCount = 1; state.customFields = null; state.customQ = null;
     renderCatalog();
   }
@@ -435,7 +432,7 @@
   function selectReaction(id) {
     state.sel = id;
     state.inA = freshInput(); state.inB = freshInput(); state.pivot = "A"; state.method = null;
-    state.learn = null; state.prac = null; state.ratio = null;
+    state.learn = null; state.ratio = null;
     goTo('method', 'forward', renderMethodSelect);
   }
 
@@ -570,7 +567,7 @@
     state.sel = 'custom';
     state.customQ = q;
     state.inA = freshInput(); state.inB = freshInput(); state.pivot = "A"; state.method = null;
-    state.learn = null; state.prac = null; state.ratio = null;
+    state.learn = null; state.ratio = null;
     goTo('method', 'forward', renderMethodSelect);
   }
 
@@ -720,9 +717,7 @@
       foot.hidden = false;
     } else { foot.hidden = true; }
 
-    btn.textContent = state.mode === 'learn' ? 'Start the working →'
-                    : state.mode === 'test' ? 'Start practising →'
-                    : 'Show my answers →';
+    btn.textContent = state.mode === 'learn' ? 'Start the working →' : 'Show my answers →';
   }
 
   document.getElementById('strategy-back').addEventListener('click', () => {
@@ -730,16 +725,13 @@
   });
 
   function beginWorking() {
-    if (state.method === 'direct' && (state.mode === 'learn' || state.mode === 'test')) {
+    if (state.method === 'direct' && state.mode === 'learn') {
       goTo('ratioTable', 'forward', setupRatioTable);
       return;
     }
     if (state.mode === 'learn') {
       state.learn = { steps: buildLearnSteps(), idx: 0, calcShown: false };
       goTo('learn', 'forward', renderLearnStep);
-    } else if (state.mode === 'test') {
-      state.prac = { steps: buildPracSteps(), idx: 0, revealed: false, guess: null };
-      goTo('prac', 'forward', renderPracStep);
     } else {
       goTo('verify', 'forward', renderVerify);
     }
@@ -952,15 +944,10 @@
     ];
   }
 
-  /* Growing ratio table (Direct method — shared by Learn and Check my
-     understanding): the card itself never changes — the equation and
-     table are set up once. In Learn, each "Next step" click adds a row
-     with its working shown straight away, and a small ⓘ toggles an
-     explanation callout open or closed per row. In Check my understanding,
-     the same row appears first with its cells blank, and a ? toggles an
-     optional hint (the same explanation, offered rather than given); a
-     second click reveals the real values in place before moving on — so
-     students try the row themselves before checking it. */
+  /* Growing ratio table (Direct method, Learn mode only): the card itself
+     never changes — the equation and table are set up once. Each "Next
+     step" click adds a row with its working shown straight away, and a
+     small ⓘ toggles an explanation callout open or closed per row. */
   function setupRatioTable() {
     const q = currentQ();
     document.getElementById('ratioEq').innerHTML = fmtEq(q.eq);
@@ -970,14 +957,9 @@
     state.ratio = { rows: buildRatioTableSteps(), idx: 0, shown: false };
     document.getElementById('ratio-eyebrow').textContent = `Step 1 of ${state.ratio.rows.length}`;
     document.getElementById('ratio-next').textContent = 'Next step →';
-
-    const isPrac = state.mode === 'test';
-    document.getElementById('ratio-instruction').textContent = isPrac
-      ? 'Try each row yourself first'
-      : 'Building the comparison table';
-    document.getElementById('ratio-strategy').innerHTML = isPrac
-      ? `Work out each row before it's revealed. Tap <span class="ratio-info-inline">?</span> next to any row if you'd like a hint first.`
-      : `Each step adds a row with its working shown straight away. Tap <span class="ratio-info-inline">ⓘ</span> next to any row to see what's being calculated and how.`;
+    document.getElementById('ratio-instruction').textContent = 'Building the comparison table';
+    document.getElementById('ratio-strategy').innerHTML =
+      `Each step adds a row with its working shown straight away. Tap <span class="ratio-info-inline">ⓘ</span> next to any row to see what's being calculated and how.`;
   }
 
   function ratioCalloutRow(row, i) {
@@ -1001,7 +983,6 @@
     });
   }
 
-  // Learn: row appears with working already filled in, callout available
   function appendRatioRow(row, i) {
     const tbody = document.getElementById('ratio-tbody');
     const dataTr = document.createElement('tr');
@@ -1018,64 +999,18 @@
     wireRatioInfoBtn(dataTr.querySelector('.ratio-info-btn'), calloutTr);
   }
 
-  // Check my understanding: row appears blank, hint available, values
-  // filled in on reveal
-  function appendRatioRowBlank(row, i) {
-    const tbody = document.getElementById('ratio-tbody');
-    const dataTr = document.createElement('tr');
-    dataTr.className = 'ratio-row-in';
-    dataTr.dataset.row = i;
-    dataTr.innerHTML =
-      `<th>${row.rowLabel} <button class="ratio-info-btn" type="button" data-row="${i}" aria-expanded="false" aria-label="Show hint for ${row.rowLabel}">?</button></th>` +
-      `<td class="ratio-blank">?</td><td class="ratio-blank">?</td>`;
-    tbody.appendChild(dataTr);
-
-    const calloutTr = ratioCalloutRow(row, i);
-    tbody.appendChild(calloutTr);
-    wireRatioInfoBtn(dataTr.querySelector('.ratio-info-btn'), calloutTr);
-  }
-  function revealRatioRow(row, i) {
-    const dataTr = document.querySelector(`#ratio-tbody tr.ratio-row-in[data-row="${i}"]`);
-    if (!dataTr) return;
-    const [cellA, cellB] = dataTr.querySelectorAll('td');
-    cellA.innerHTML = row.cellA; cellB.innerHTML = row.cellB;
-    cellA.classList.remove('ratio-blank'); cellB.classList.remove('ratio-blank');
-    if (row.highlight === 'a') cellA.classList.add('ratio-limiting');
-    if (row.highlight === 'b') cellB.classList.add('ratio-limiting');
-    const infoBtn = dataTr.querySelector('.ratio-info-btn');
-    infoBtn.textContent = 'ⓘ';
-    infoBtn.setAttribute('aria-label', `Show explanation for ${row.rowLabel}`);
-  }
-
   document.getElementById('ratio-next').addEventListener('click', () => {
     if (!state.ratio) return;
     const { rows, idx } = state.ratio;
     const btn = document.getElementById('ratio-next');
-    const isPrac = state.mode === 'test';
 
     if (idx >= rows.length) {
       goTo('verdict', 'forward', renderVerdict);
       return;
     }
 
-    if (isPrac && !state.ratio.shown) {
-      // phase 1: show the row blank, so the student can try it first
-      appendRatioRowBlank(rows[idx], idx);
-      state.ratio.shown = true;
-      btn.textContent = 'Reveal this row →';
-      return;
-    }
-
-    if (isPrac) {
-      // phase 2: reveal the values already on the page
-      revealRatioRow(rows[idx], idx);
-    } else {
-      // Learn: filled straight away, no separate reveal phase
-      appendRatioRow(rows[idx], idx);
-    }
-
+    appendRatioRow(rows[idx], idx);
     state.ratio.idx = idx + 1;
-    state.ratio.shown = false;
     if (state.ratio.idx < rows.length) {
       document.getElementById('ratio-eyebrow').textContent = `Step ${state.ratio.idx + 1} of ${rows.length}`;
       btn.textContent = 'Next step →';
@@ -1119,165 +1054,6 @@
       panTransition(cards.learn, cards.learn, 'forward', () => {
         state.learn.idx = idx + 1;
         renderLearnStep();
-      });
-    } else {
-      goTo('verdict', 'forward', renderVerdict);
-    }
-  });
-
-  /* ---------------- PRACTISE: one card at a time, gated ---------------- */
-  function buildPracSteps() {
-    return buildPracStepsGiven();
-  }
-
-  function buildPracStepsGiven() {
-    const { q, res } = computed();
-    const pv = pivotView(res, state.pivot);
-    const fP = fmtFormula(pv.P.sp), fQ = fmtFormula(pv.Q.sp);
-
-    return [
-      {
-        instruction: 'Here are the moles — the rest is yours.',
-        strategy: `Both amounts have been converted to moles for you. You chose to test ${fP} first. From here on, predict each result before you reveal it.`,
-        kind: 'given',
-        body: `<div class="ans-lines">${mathGrid(`n(${fP}) = ${sig(pv.nP)} mol<br>n(${fQ}) = ${sig(pv.nQ)} mol`)}</div>`
-      },
-      {
-        instruction: 'Read off the mole ratio.',
-        strategy: `What is the ${fP} : ${fQ} ratio in the balanced equation? Say it out loud, then reveal.`,
-        kind: 'reveal',
-        revealLabel: 'Ratio from the balanced equation — try it first',
-        body: `<div class="ans-lines">${mathGrid(`${fP} : ${fQ} = ${pv.pCoef} : ${pv.qCoef}`)}</div>`
-      },
-      {
-        instruction: 'Compare: needed vs available.',
-        strategy: `Write the ratio n(${fQ}) ⁄ n(${fP}) = ${pv.qCoef}⁄${pv.pCoef}, rearrange to make n(${fQ}) the subject, then substitute the ${sig(pv.nP)} mol of ${fP} you have. Work it out on paper, then reveal.`,
-        kind: 'reveal',
-        revealLabel: 'Needed amount vs available amount',
-        body: `<div class="ans-lines">${mathGrid(neededMath(pv))}</div>`
-      },
-      {
-        instruction: 'Which reactant is limiting?',
-        strategy: res.tie
-          ? 'Compare the needed amount with the available amount. Careful — this one may surprise you.'
-          : `Make a prediction first — was ${fP} really the one that runs out, or does the comparison say otherwise? Then reveal.`,
-        kind: 'guess'
-      }
-    ];
-  }
-
-  const pracEyebrow = document.getElementById('prac-eyebrow');
-  const pracInstruction = document.getElementById('prac-instruction');
-  const pracStrategy = document.getElementById('prac-strategy');
-  const pracBody = document.getElementById('prac-body');
-  const pracNext = document.getElementById('prac-next');
-
-  function renderPracStep() {
-    const { steps, idx } = state.prac;
-    const s = steps[idx];
-    pracEyebrow.textContent = `Step ${idx + 1} of ${steps.length}`;
-    pracInstruction.innerHTML = s.instruction;
-    pracStrategy.innerHTML = s.strategy;
-    state.prac.revealed = false;
-    state.prac.guess = null;
-
-    if (s.kind === 'given') {
-      pracBody.innerHTML = s.body;
-      pracNext.hidden = false;
-      pracNext.textContent = 'Next step →';
-    } else if (s.kind === 'reveal') {
-      pracBody.innerHTML =
-        `<div class="reveal" data-reveal="1" role="button" tabindex="0">
-          <span class="rl">${s.revealLabel}</span>
-          <span class="rk">Reveal ▾</span>
-        </div>`;
-      pracNext.hidden = true;
-      wirePracBody();
-    } else { // guess
-      const { q, res } = computed();
-      pracBody.innerHTML =
-        `<div class="gprompt">Make a prediction:</div>
-         <div class="guess">
-           ${[q.A, q.B].map(x => `<button class="gbtn" data-guess="${x.sp}" type="button">${fmtFormula(x.sp)}</button>`).join('')}
-           ${res.tie ? '<button class="gbtn" data-guess="__tie__" type="button">Neither — exact</button>' : ''}
-         </div>
-         <div class="reveal" data-reveal="1" role="button" tabindex="0">
-           <span class="rl">…or just reveal the answer</span>
-           <span class="rk">Reveal ▾</span>
-         </div>`;
-      pracNext.hidden = true;
-      wirePracBody();
-    }
-  }
-
-  function wirePracBody() {
-    pracBody.querySelectorAll('[data-reveal]').forEach(el => el.addEventListener('click', pracReveal));
-    pracBody.querySelectorAll('[data-guess]').forEach(el => el.addEventListener('click', () => {
-      state.prac.guess = el.dataset.guess;
-      pracReveal();
-    }));
-  }
-
-  function pracReveal() {
-    const { steps, idx } = state.prac;
-    const s = steps[idx];
-    if (state.prac.revealed) return;
-    state.prac.revealed = true;
-
-    if (s.kind === 'reveal') {
-      pracBody.innerHTML = s.body;
-      pracNext.hidden = false;
-      pracNext.textContent = 'Next step →';
-      return;
-    }
-
-    // guess step → verdict feedback inline, then hand off to the verdict card
-    const { q, res } = computed();
-    const correctSp = res.tie ? '__tie__' : res.limiting.sp;
-    const guessed = state.prac.guess;
-    let feedback = '';
-    if (guessed) {
-      const correct = guessed === correctSp;
-      feedback = `<div class="guess">` +
-        [q.A, q.B].map(x => {
-          const cls = x.sp === guessed ? (x.sp === correctSp ? 'ok' : 'no') : (x.sp === correctSp ? 'ok' : '');
-          return `<button class="gbtn ${cls}" disabled type="button">${fmtFormula(x.sp)}</button>`;
-        }).join('') +
-        (res.tie ? `<button class="gbtn ${guessed === '__tie__' ? 'ok' : 'ok'}" disabled type="button">Neither — exact</button>` : '') +
-        `</div><div class="gverdict ${guessed === correctSp ? 'gv-ok' : 'gv-no'}">${guessed === correctSp ? 'Correct ✓' : 'Not quite — see the conclusion'}</div>`;
-    } else {
-      feedback = `<div class="gverdict">Answer revealed — see the conclusion.</div>`;
-    }
-    let branchNote;
-    if (state.method === 'direct') {
-      const rv = ratioCompareView(res);
-      const fS = fmtFormula(rv.S.sp), fO = fmtFormula(rv.O.sp);
-      branchNote = rv.tie
-        ? `Scaled to match, both sides land exactly on their coefficients — exactly stoichiometric, so neither reactant is in excess.`
-        : (rv.oScaled > rv.oCoef
-          ? `Scaled to match <b>${fS}</b>, <b>${fO}</b> comes out ahead of what's needed — so <b>${fS}</b> is the one that runs out first.`
-          : `Scaled to match <b>${fS}</b>, <b>${fO}</b> falls short of what's needed — so <b>${fO}</b> is the one that runs out first.`);
-    } else {
-      const pv = pivotView(res, state.pivot);
-      branchNote = res.tie
-        ? `Both reactants run out together — exactly stoichiometric, so your test on ${fmtFormula(pv.P.sp)} couldn't have gone wrong either way.`
-        : pv.enough
-          ? `Your test on <b>${fmtFormula(pv.P.sp)}</b> held up: it really does run out first.`
-          : `Your test on <b>${fmtFormula(pv.P.sp)}</b> didn't hold up — there wasn't enough ${fmtFormula(pv.Q.sp)} to use it all up, so <b>${fmtFormula(pv.Q.sp)}</b> runs out first instead.`;
-    }
-    feedback += `<p class="branch-note">${branchNote}</p>`;
-    pracBody.innerHTML = feedback;
-    pracNext.hidden = false;
-    pracNext.textContent = 'See the conclusion →';
-  }
-
-  pracNext.addEventListener('click', () => {
-    if (!state.prac) return;
-    const { steps, idx } = state.prac;
-    if (idx + 1 < steps.length) {
-      panTransition(cards.prac, cards.prac, 'forward', () => {
-        state.prac.idx = idx + 1;
-        renderPracStep();
       });
     } else {
       goTo('verdict', 'forward', renderVerdict);

@@ -644,7 +644,6 @@ main { max-width: 900px; margin: 0 auto; padding: 8px 24px 0; }
 .ratio-row-in { animation: fade .5s var(--ease-buttery); }
 .ratio-limiting { background: rgba(245, 185, 66, .16); border-radius: 8px; box-shadow: inset 0 0 0 1.5px var(--gold); }
 [data-theme="dark"] .ratio-limiting { background: rgba(245, 185, 66, .12); }
-.ratio-blank { color: var(--faint); font-size: 1.1em; text-align: center; }
 
 .ratio-info-inline {
   display: inline-flex; align-items: center; justify-content: center;
@@ -743,35 +742,7 @@ main { max-width: 900px; margin: 0 auto; padding: 8px 24px 0; }
   .eqgrid .typewipe { clip-path: none; animation: none; }
 }
 
-/* ---------- practise: reveal boxes + guess buttons ---------- */
 .ans-lines { font-family: var(--mono); font-size: 1.02rem; line-height: 2.05; overflow-x: auto; animation: fade .55s var(--ease-buttery); }
-.reveal {
-  border: 1px dashed var(--teal-100); background: var(--card); border-radius: 10px; padding: 12px 14px; cursor: pointer;
-  display: flex; align-items: center; justify-content: space-between; gap: 10px;
-  transition: border-color .2s var(--ease-buttery), background .2s var(--ease-buttery), transform .2s var(--ease-buttery);
-  margin-top: 6px;
-}
-.reveal:hover { border-color: var(--teal-600); transform: translateY(-1px); }
-.reveal .rl { font-size: .88rem; color: var(--muted); font-weight: 600; font-family: var(--display); }
-.reveal .rk { font-size: .74rem; color: var(--teal-700); font-weight: 700; letter-spacing: .04em; font-family: var(--body); white-space: nowrap; }
-
-.gprompt { font-size: .88rem; color: var(--muted); margin-bottom: 8px; font-family: var(--display); }
-.guess { display: flex; gap: 9px; flex-wrap: wrap; margin: 4px 0 10px; }
-.gbtn {
-  border: 1px solid var(--line); background: var(--card); color: var(--ink); border-radius: 9px;
-  padding: 9px 13px; font-size: .9rem; font-weight: 700; cursor: pointer; font-family: var(--mono);
-  transition: border-color .2s var(--ease-buttery), transform .2s var(--ease-buttery);
-}
-.gbtn:hover:not(:disabled) { border-color: var(--teal-600); transform: translateY(-1px); }
-.gbtn sub { font-size: .7em; } .gbtn sup { font-size: .7em; }
-.gbtn.ok { border-color: var(--lim); background: var(--teal-50); color: var(--teal-900); }
-[data-theme="dark"] .gbtn.ok { background: #0f3b37; color: #aef3ea; }
-.gbtn.no { border-color: var(--error-border); background: var(--error-bg); color: var(--error-text); }
-.gverdict { font-size: .95rem; font-weight: 700; font-family: var(--display); }
-.gverdict.gv-ok { color: var(--lim); }
-.gverdict.gv-no { color: var(--error-text); }
-.branch-note { font-family: var(--display); font-size: .92rem; color: var(--muted); margin: 10px 0 0; line-height: 1.6; }
-.branch-note b { color: var(--ink); }
 
 /* ---------- verify worksheet ---------- */
 .worksheet {
