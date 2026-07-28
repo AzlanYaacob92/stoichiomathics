@@ -93,6 +93,98 @@ function composition(formula){
 function molarMass(sp){ const c=composition(sp); let m=0; for(const k in c){ if(!(k in AM)) return null; m+=AM[k]*c[k]; } return m; }
 // Per-element contributions, used to show the molar-mass breakdown.
 function massParts(sp){ const c=composition(sp); return Object.entries(c).map(([el,n])=>({el,n,a:AM[el]})); }
+// Whether `sp` already parses (via composition()'s strict, case-sensitive
+// reading) into a fully recognised formula. When this is true the user's own
+// capitalisation is trusted as-is — it's the only signal that disambiguates
+// e.g. "CO" (C + O) from "Co" (cobalt), so smart-casing must never override it.
+function isRecognisedFormula(sp){ const c=composition(sp); return !!Object.keys(c).length && molarMass(sp)!=null; }
+
+/* ---- Smart formula detection ---------------------------------------------
+   Recovers a real formula from sloppy/uncased input like "h2so4" or "nacl",
+   for when isRecognisedFormula() above says the as-typed text doesn't parse.
+   Case is meaningless at that point, so every letter run is re-segmented
+   case-insensitively against the known element symbols; digits, parentheses
+   and a trailing charge are structural and stay exactly where the user put
+   them. A run can segment more than one way (S+O+S vs S+Os for "sos"; C+O+Cl2
+   vs Co+Cl2 for "cocl2") — each is a real, mutually exclusive reading, so all
+   of them come back rather than silently picking one. */
+const AM_BY_LOWER = {};
+Object.keys(AM).forEach(sym => { AM_BY_LOWER[sym.toLowerCase()] = sym; });
+
+// All ways to split a pure-letter run into known element symbols (1 or 2
+// letters, matched case-insensitively). "sos" -> [["S","O","S"],["S","Os"]].
+function segmentElements(run){
+  const n = run.length;
+  const memo = new Array(n + 1);
+  function go(pos){
+    if (pos === n) return [[]];
+    if (memo[pos]) return memo[pos];
+    const out = [];
+    for (let len = 1; len <= 2 && pos + len <= n; len++){
+      const sym = AM_BY_LOWER[run.slice(pos, pos + len).toLowerCase()];
+      if (!sym) continue;
+      for (const rest of go(pos + len)) out.push([sym, ...rest]);
+    }
+    memo[pos] = out;
+    return out;
+  }
+  return go(0);
+}
+
+const MAX_FORMULA_CANDIDATES = 6;
+
+// Every fully-cased formula string consistent with the known element symbols
+// for a raw, sloppily-cased formula. [] means no reading was recognisable;
+// one entry means an unambiguous fix; several means a real conflict the user
+// needs to resolve (see the module doc comment above for examples).
+function smartFormulaCandidates(raw){
+  const chargeM = raw.match(/\^[0-9+\-]*$/);
+  const charge = chargeM ? chargeM[0] : '';
+  const body = charge ? raw.slice(0, raw.length - charge.length) : raw;
+  let i = 0;
+  function readDigits(){ let s=''; while(i<body.length && /[0-9]/.test(body[i])){ s+=body[i]; i++; } return s; }
+  function cross(prev, additions, wrap){
+    const out = [];
+    for (const p of prev) for (const a of additions) out.push(p + wrap(a));
+    return out;
+  }
+  function parseGroup(nested){
+    let candidates = [''];
+    while (i < body.length){
+      const c = body[i];
+      if (c === '(' || c === '['){
+        const close = c === '(' ? ')' : ']';
+        i++;
+        const inner = parseGroup(nested + 1);
+        if (inner == null) return null;
+        if (i < body.length && body[i] === close) i++;
+        const digits = readDigits();
+        candidates = cross(candidates, inner, s => c + s + close + digits);
+      } else if ((c === ')' || c === ']') && nested > 0){
+        break;
+      } else if (/[A-Za-z]/.test(c)){
+        let j = i; while (j < body.length && /[A-Za-z]/.test(body[j])) j++;
+        const run = body.slice(i, j); i = j;
+        const digits = readDigits();
+        const segs = segmentElements(run);
+        if (!segs.length) return null;
+        const runCandidates = segs.map(symList => {
+          const last = symList.length - 1;
+          return symList.map((sym, idx) => sym + (idx === last ? digits : '')).join('');
+        });
+        candidates = cross(candidates, runCandidates, s => s);
+      } else if (/[0-9]/.test(c)){
+        i++; // orphan digit with no preceding symbol at this level — drop it
+      } else {
+        candidates = candidates.map(s => s + c); i++;
+      }
+    }
+    return candidates;
+  }
+  const result = parseGroup(0);
+  if (!result) return [];
+  return [...new Set(result.map(s => s + charge))].slice(0, MAX_FORMULA_CANDIDATES);
+}
 // Strip a leading stoichiometric coefficient and any trailing charge notation
 // from a species token, keeping the literal formula characters intact (so
 // partial/incomplete typing can still be prefix-matched against it).

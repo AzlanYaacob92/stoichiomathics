@@ -488,6 +488,10 @@
           data-side="${side}" data-idx="${idx}" data-role="name" aria-label="${letter} formula" autocomplete="off" spellcheck="false">
       </div>
       <div class="formula-preview" data-side="${side}" data-idx="${idx}">${field.name ? fmtFormula(field.name) : ''}</div>
+      <div class="formula-conflict" data-side="${side}" data-idx="${idx}" hidden>
+        <div class="formula-conflict-label">Multiple matches — which did you mean?</div>
+        <div class="formula-conflict-options"></div>
+      </div>
     </div>`;
   }
 
@@ -507,6 +511,51 @@
     document.getElementById('customPreview').innerHTML = fmtEq(customEqPreview());
   }
 
+  // Applies a chosen/auto-detected formula to a field: updates state, the
+  // input's own text (so the user sees the corrected casing), its preview,
+  // and clears any conflict picker that was showing for it.
+  function applyFormula(side, idx, formula) {
+    const arr = side === 'reactant' ? state.customFields.reactants : state.customFields.products;
+    arr[+idx].name = formula;
+    const input = document.querySelector(`.name-input[data-side="${side}"][data-idx="${idx}"]`);
+    if (input) input.value = formula;
+    const preview = document.querySelector(`.formula-preview[data-side="${side}"][data-idx="${idx}"]`);
+    if (preview) preview.innerHTML = fmtFormula(formula);
+    clearFormulaConflict(side, idx);
+    updateCustomPreview();
+  }
+
+  function clearFormulaConflict(side, idx) {
+    const box = document.querySelector(`.formula-conflict[data-side="${side}"][data-idx="${idx}"]`);
+    if (box) box.hidden = true;
+  }
+
+  function showFormulaConflict(side, idx, candidates) {
+    const box = document.querySelector(`.formula-conflict[data-side="${side}"][data-idx="${idx}"]`);
+    if (!box) return;
+    box.querySelector('.formula-conflict-options').innerHTML = candidates.map(c =>
+      `<button type="button" class="formula-option" data-value="${c}">${fmtFormula(c)}</button>`).join('');
+    box.hidden = false;
+    box.querySelectorAll('.formula-option').forEach(btn =>
+      btn.addEventListener('click', () => applyFormula(side, idx, btn.dataset.value)));
+  }
+
+  // On blur (not every keystroke, so we don't rewrite text under the user's
+  // cursor mid-word), try to recover a real formula from sloppy casing —
+  // "h2so4" auto-fixes to "H2SO4"; "sos" or "cocl2" have more than one real
+  // reading, so a picker replaces the guess-silently approach. Text that
+  // already parses (the user's own capitalisation, e.g. "CO" vs "Co") is
+  // trusted as-is and left untouched.
+  function trySmartFormula(side, idx) {
+    const arr = side === 'reactant' ? state.customFields.reactants : state.customFields.products;
+    const raw = (arr[+idx].name || '').trim();
+    clearFormulaConflict(side, idx);
+    if (!raw || isRecognisedFormula(raw)) return;
+    const candidates = smartFormulaCandidates(raw);
+    if (candidates.length === 1 && candidates[0] !== raw) applyFormula(side, idx, candidates[0]);
+    else if (candidates.length > 1) showFormulaConflict(side, idx, candidates);
+  }
+
   function wireCustomBuild() {
     document.querySelectorAll('#customReactants input, #customProducts input').forEach(inp => {
       inp.addEventListener('input', e => {
@@ -516,9 +565,13 @@
         if (role === 'name') {
           const preview = document.querySelector(`.formula-preview[data-side="${side}"][data-idx="${idx}"]`);
           if (preview) preview.innerHTML = e.target.value ? fmtFormula(e.target.value) : '';
+          clearFormulaConflict(side, idx);
         }
         updateCustomPreview();
       });
+      if (inp.dataset.role === 'name') {
+        inp.addEventListener('blur', () => trySmartFormula(inp.dataset.side, inp.dataset.idx));
+      }
     });
   }
 

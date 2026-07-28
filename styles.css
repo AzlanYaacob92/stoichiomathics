@@ -524,6 +524,15 @@ main { max-width: 900px; margin: 0 auto; padding: 8px 24px 0; }
 }
 .formula-preview sub { font-size: .66em; } .formula-preview sup { font-size: .66em; }
 .formula-preview:empty::before { content: '—'; color: var(--faint); }
+.formula-conflict { margin-top: 10px; }
+.formula-conflict-label { font-family: var(--body); font-size: .78rem; color: var(--muted); margin-bottom: 6px; }
+.formula-conflict-options { display: flex; gap: 8px; flex-wrap: wrap; }
+.formula-option {
+  font-family: var(--mono); font-size: .92em; font-weight: 700; padding: 4px 11px; border-radius: 7px;
+  border: 1px solid var(--teal-100); background: transparent; color: var(--teal-700); cursor: pointer;
+}
+.formula-option sub, .formula-option sup { font-size: .7em; }
+.formula-option:hover { background: var(--teal-50); }
 
 /* ---------- measurements card ---------- */
 .calc-eq {
