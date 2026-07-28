@@ -1160,7 +1160,7 @@
     whatif.hidden = false;
     whatifBody.hidden = true;
     whatifBody.innerHTML = '';
-    whatifToggle.textContent = `What if I wanted to use up all the ${fmtFormula(res.excess.sp)} instead?`;
+    whatifToggle.innerHTML = `What if I wanted to use up all the ${fmtFormula(res.excess.sp)} instead?`;
     whatifToggle.setAttribute('aria-expanded', 'false');
     whatifToggle.onclick = () => {
       const expanded = whatifToggle.getAttribute('aria-expanded') === 'true';
