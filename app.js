@@ -469,11 +469,22 @@
     goTo('customBuild', 'forward', renderCustomBuild);
   });
 
+  // The smart-cased reading of a formula, without touching the stored/typed
+  // text: the user's own casing if it already parses, the single fix if
+  // there's exactly one, or the raw text unchanged if it's ambiguous or
+  // unrecognised (the conflict picker / validation error covers those).
+  function resolvedFormula(raw) {
+    raw = (raw || '').trim();
+    if (!raw || isRecognisedFormula(raw)) return raw;
+    const candidates = smartFormulaCandidates(raw);
+    return candidates.length === 1 ? candidates[0] : raw;
+  }
+
   function customEqPreview() {
     const { reactants, products } = state.customFields;
     const side = arr => arr.map(f => {
       const n = f.coef !== '' ? Number(f.coef) : NaN;
-      return (isFinite(n) && n > 1 ? n : '') + (f.name || '…');
+      return (isFinite(n) && n > 1 ? n : '') + (resolvedFormula(f.name) || '…');
     }).join(' + ');
     return side(reactants) + ' -> ' + side(products);
   }
@@ -540,20 +551,29 @@
       btn.addEventListener('click', () => applyFormula(side, idx, btn.dataset.value)));
   }
 
-  // On blur (not every keystroke, so we don't rewrite text under the user's
-  // cursor mid-word), try to recover a real formula from sloppy casing —
-  // "h2so4" auto-fixes to "H2SO4"; "sos" or "cocl2" have more than one real
-  // reading, so a picker replaces the guess-silently approach. Text that
-  // already parses (the user's own capitalisation, e.g. "CO" vs "Co") is
-  // trusted as-is and left untouched.
+  // Live, on every keystroke: reflects the smart-cased reading in the
+  // per-field preview and the conflict picker without ever rewriting the
+  // input's own text (that would fight the user's cursor mid-word).
+  function updateFormulaPreview(side, idx, raw) {
+    const preview = document.querySelector(`.formula-preview[data-side="${side}"][data-idx="${idx}"]`);
+    if (preview) preview.innerHTML = raw ? fmtFormula(resolvedFormula(raw)) : '';
+    if (!raw || isRecognisedFormula(raw)) { clearFormulaConflict(side, idx); return; }
+    const candidates = smartFormulaCandidates(raw);
+    if (candidates.length > 1) showFormulaConflict(side, idx, candidates);
+    else clearFormulaConflict(side, idx);
+  }
+
+  // On blur, commit an unambiguous smart-cased reading into the field's own
+  // text too — "h2so4" becomes "H2SO4" in the box, not just in the preview.
+  // A genuine conflict ("sos", "cocl2") stays as typed until the user picks
+  // an option; text that already parses (the user's own capitalisation,
+  // e.g. "CO" vs "Co") is trusted as-is and left untouched.
   function trySmartFormula(side, idx) {
     const arr = side === 'reactant' ? state.customFields.reactants : state.customFields.products;
     const raw = (arr[+idx].name || '').trim();
-    clearFormulaConflict(side, idx);
     if (!raw || isRecognisedFormula(raw)) return;
     const candidates = smartFormulaCandidates(raw);
     if (candidates.length === 1 && candidates[0] !== raw) applyFormula(side, idx, candidates[0]);
-    else if (candidates.length > 1) showFormulaConflict(side, idx, candidates);
   }
 
   function wireCustomBuild() {
@@ -562,11 +582,7 @@
         const { side, idx, role } = e.target.dataset;
         const arr = side === 'reactant' ? state.customFields.reactants : state.customFields.products;
         arr[+idx][role] = e.target.value;
-        if (role === 'name') {
-          const preview = document.querySelector(`.formula-preview[data-side="${side}"][data-idx="${idx}"]`);
-          if (preview) preview.innerHTML = e.target.value ? fmtFormula(e.target.value) : '';
-          clearFormulaConflict(side, idx);
-        }
+        if (role === 'name') updateFormulaPreview(side, idx, e.target.value.trim());
         updateCustomPreview();
       });
       if (inp.dataset.role === 'name') {
