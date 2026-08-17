@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Chemculate Limiting Reactant</title>
+<meta name="description" content="Work out which reactant is limiting, one step at a time, by comparing moles against the balanced equation's mole ratio.">
+<!-- Inline SVG favicon: no extra request, no file to lose. -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E%E2%9A%96%EF%B8%8F%3C/text%3E%3C/svg%3E">
   <script>
     // Apply the saved theme before styles paint, so there is no flash of the
     // wrong theme. Remembers the student's choice; falls back to their
@@ -16,6 +19,12 @@
       } catch (e) { /* localStorage unavailable — default light styles apply */ }
     })();
   </script>
+  <!-- design-system.css is NOT linked here on purpose. It cannot be loaded
+       alongside styles.css as a no-op: its dark block is
+       `@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) }`,
+       which outranks this file's `[data-theme="dark"]` whatever the load order,
+       so dark mode turns lavender while every accent stays teal. Adopting it
+       means doing the retheme described at the end of DESIGN-SYSTEM.md. -->
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -110,7 +119,7 @@
         <div class="custom-arrow-row"><span class="custom-arrow">→</span></div>
         <div class="custom-side-label">Products</div>
         <div class="custom-grid" id="customProducts"></div>
-        <p class="form-error" id="custom-error" hidden></p>
+        <p class="form-error" id="custom-error" role="alert" hidden></p>
         <button class="btn btn--primary" id="custom-build-continue" type="button">Build equation →</button>
         <div class="wizard-back-row">
           <button class="btn btn--ghost" id="custom-build-back" type="button">← Change product count</button>
@@ -144,7 +153,7 @@
         <div class="calc-eq" id="measureEq"></div>
         <div id="measureNote"></div>
         <div class="inputs" id="inputs"></div>
-        <p class="form-error" id="measure-error" hidden></p>
+        <p class="form-error" id="measure-error" role="alert" hidden></p>
         <button class="btn btn--primary" id="measure-continue" type="button">Continue →</button>
         <div class="wizard-back-row">
           <button class="btn btn--ghost" id="measure-back" type="button">← Change method</button>
@@ -241,7 +250,7 @@
 
   <footer class="site-footer">
     <div><b>How it works:</b> moles <code>n = m ÷ M<sub>r</sub></code>. For <code>aA + bB → …</code> the amount of B needed to use up all the A is <code>n(A) × b/a</code>. If that's more than you have, B runs out first (B is limiting); if it's less, A runs out first. The reactant left over is the one in excess.</div>
-    <div style="margin-top:8px">Relative atomic masses follow common data-booklet values (H = 1.0, O = 16.0, Cl = 35.5, Cu = 63.5 …). State symbols and spectator H⁺/OH⁻ are omitted. Molar gas volume: 24.0 dm³ mol⁻¹ at RTP, 22.4 dm³ mol⁻¹ at STP. Always re-check against your own mark scheme.</div>
+    <div style="margin-top:8px">Relative atomic masses follow common data-booklet values (H = 1.0, O = 16.0, Cl = 35.5, Cu = 63.5 …). State symbols and spectator H⁺/OH⁻ are omitted. Molar gas volume: 24.0 dm³ mol⁻¹ at RTP (20 °C, 1 atm), 22.4 dm³ mol⁻¹ at STP (0 °C, 1 atm). Answers are given to 4 significant figures. This tool shows the method; always re-check against your own mark scheme.</div>
   </footer>
 
   <script src="chemistry.js"></script>

@@ -205,7 +205,12 @@ function bareFormula(sp){
 // Spectators excluded from limiting-reactant logic (supplied in excess).
 const SPECT = new Set(['H^+','OH^-','e^-']);
 /* ---- Molar gas volume (school conventions), dm^3 per mol ------------------
-   RTP = 25 °C, 1 atm → 24.0 ; STP = 0 °C, 1 atm → 22.4  (SK015 / A-level). */
+   RTP = room temperature and pressure, 20 °C and 1 atm → 24.0
+   STP = standard temperature and pressure, 0 °C and 1 atm → 22.4
+   These are the rounded data-booklet values used in SK015 / A-level, not
+   values recomputed from the ideal gas equation. Note 24.0 goes with 20 °C:
+   at 25 °C the molar volume is 24.5 dm³ mol⁻¹. If your syllabus defines RTP
+   as 25 °C, change the value here and the footer note in index.html together. */
 const MOLAR_VOL = { RTP:24.0, STP:22.4 };
 // Split a token into {coef, sp}, e.g. "2HCl" -> {coef:2, sp:"HCl"}.
 function splitToken(tok){
@@ -691,4 +696,12 @@ function ratioCompareView(res){
   // oScaled < oCoef -> O is limiting (falls short once scaled to match S)
   // oScaled > oCoef -> S is limiting (O has more than its scaled share)
   return {S,O,nS,nO,sCoef,oCoef,MS,MO,k,oScaled,tie};
+}
+
+/* In the browser these are already globals, loaded before app.js. This block
+   exists only so test-chemistry.js can require the engine under Node. */
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { AM, MOLAR_VOL, SPECT, R, QUAL, composition, molarMass, massParts,
+                     isRecognisedFormula, smartFormulaCandidates, parseReaction,
+                     computeLimiting, pivotView, ratioCompareView };
 }

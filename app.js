@@ -611,6 +611,27 @@
     return null;
   }
 
+  /* The whole point of this app is comparing moles against the mole ratio, so
+     an unbalanced custom equation makes the wrong reactant look limiting.
+     Count atoms on each side and refuse to build until they match. */
+  function balanceError(A, B, prods) {
+    const tally = side => side.reduce((acc, t) => {
+      const c = composition(t.sp);
+      for (const el in c) acc[el] = (acc[el] || 0) + t.coef * c[el];
+      return acc;
+    }, {});
+    const left = tally([A, B]), right = tally(prods);
+    const elements = [...new Set([...Object.keys(left), ...Object.keys(right)])];
+    const off = elements
+      .map(el => ({ el, l: left[el] || 0, r: right[el] || 0 }))
+      .filter(x => x.l !== x.r);
+    if (!off.length) return null;
+    const detail = off.map(x => `${x.el}: ${x.l} on the left, ${x.r} on the right`).join('; ');
+    return `That equation isn't balanced yet — ${detail}. ` +
+           `Which reactant is limiting depends entirely on the mole ratio, so the ` +
+           `ratio numbers have to balance first. Adjust them and try again.`;
+  }
+
   document.getElementById('custom-build-continue').addEventListener('click', () => {
     const { reactants, products } = state.customFields;
     const err = document.getElementById('custom-error');
@@ -619,10 +640,14 @@
     reactants.forEach((f, i) => { msg = msg || validateField(f, labels.reactant[i], true); });
     products.forEach((f, i) => { msg = msg || validateField(f, labels.product[i], false); });
     if (msg) { err.textContent = msg; err.hidden = false; return; }
-    err.hidden = true;
 
     const A = { coef: Number(reactants[0].coef), sp: reactants[0].name.trim() };
     const B = { coef: Number(reactants[1].coef), sp: reactants[1].name.trim() };
+
+    const unbalanced = balanceError(A, B, products.map(f => ({ coef: Number(f.coef), sp: f.name.trim() })));
+    if (unbalanced) { err.textContent = unbalanced; err.hidden = false; return; }
+    err.hidden = true;
+
     const prodTokens = products.map(f => `${Number(f.coef) > 1 ? Number(f.coef) : ''}${f.name.trim()}`);
     const eq = `${A.coef > 1 ? A.coef : ''}${A.sp} + ${B.coef > 1 ? B.coef : ''}${B.sp} -> ${prodTokens.join(' + ')}`;
     const elset = new Set();

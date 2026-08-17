@@ -1,0 +1,14 @@
+# Editor / assistant scratch
+.claude/
+.vscode/
+*.code-workspace
+
+# OS junk
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+._*
+
+# Archives dropped in during manual uploads
+*.zip
